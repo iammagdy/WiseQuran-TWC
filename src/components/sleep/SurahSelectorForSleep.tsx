@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { Search, ChevronDown, Check, Download, Loader2, WifiOff } from "lucide-react";
+import { Search, ChevronDown, Check, Download, Loader2, WifiOff, Trash2 } from "lucide-react";
 import { SURAH_META } from "@/data/surah-meta";
 import { downloadSurahAudio } from "@/lib/quran-audio";
+import { deleteAudio } from "@/lib/db";
 import { requestPersistentStorageWithToast } from "@/lib/storage-persist";
 import { toast } from "sonner";
 
@@ -71,6 +72,22 @@ export function SurahSelectorForSleep({
 
   const isOnline = typeof navigator === "undefined" ? true : navigator.onLine;
 
+  const handleDelete = async (surahNumber: number) => {
+    try {
+      await deleteAudio(reciterId, surahNumber);
+      onAfterDownload();
+      toast.success(
+        language === "ar"
+          ? "تم حذف التسجيل من الجهاز"
+          : "Recording deleted from device",
+      );
+    } catch {
+      toast.error(
+        language === "ar" ? "تعذّر الحذف، حاول مجدداً" : "Delete failed, try again",
+      );
+    }
+  };
+
   const handleDownload = async (surahNumber: number, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -81,7 +98,12 @@ export function SurahSelectorForSleep({
       inFlight.abort();
       return;
     }
-    if (downloadedSurahs.has(surahNumber)) return;
+    // If this surah is already cached, the button acts as a delete:
+    // it frees device storage and removes the offline copy.
+    if (downloadedSurahs.has(surahNumber)) {
+      await handleDelete(surahNumber);
+      return;
+    }
     if (!isOnline) {
       toast.error(language === "ar" ? "لا يوجد اتصال بالإنترنت" : "No internet connection");
       return;
@@ -169,12 +191,11 @@ export function SurahSelectorForSleep({
               </button>
               <button
                 onClick={(e) => handleDownload(surah.number, e)}
-                disabled={isCached && !isBusy}
                 aria-label={
                   isCached
                     ? language === "ar"
-                      ? "محفوظة بدون اتصال"
-                      : "Saved offline"
+                      ? "حذف التسجيل المحفوظ"
+                      : "Delete saved recording"
                     : isBusy
                       ? language === "ar"
                         ? "إلغاء التنزيل"
@@ -186,23 +207,28 @@ export function SurahSelectorForSleep({
                 title={
                   isCached
                     ? language === "ar"
-                      ? "محفوظة بدون اتصال"
-                      : "Saved offline"
+                      ? "محفوظة — اضغط للحذف"
+                      : "Saved offline — tap to delete"
                     : language === "ar"
                       ? "تحميل للاستخدام بدون اتصال"
                       : "Download for offline"
                 }
                 data-testid={`sleep-surah-download-${surah.number}`}
-                className={`mx-1 my-0.5 flex h-6 w-6 items-center justify-center rounded-full transition-colors ${
+                className={`mx-1 my-0.5 flex h-6 w-6 items-center justify-center rounded-full transition-colors group/dl ${
                   isCached
-                    ? "bg-emerald-400/20 text-emerald-300"
+                    ? "bg-emerald-400/20 text-emerald-300 hover:bg-rose-400/20 hover:text-rose-200"
                     : isBusy
                       ? "bg-amber-300/20 text-amber-200"
                       : "bg-white/10 text-white/60 hover:bg-white/20"
                 }`}
               >
                 {isCached ? (
-                  <Check className="h-3 w-3" />
+                  <>
+                    {/* Default: ✓ confirms the surah is saved.
+                        Hover/focus: 🗑 reveals the destructive action. */}
+                    <Check className="h-3 w-3 group-hover/dl:hidden" />
+                    <Trash2 className="h-3 w-3 hidden group-hover/dl:inline" />
+                  </>
                 ) : isBusy ? (
                   <Loader2 className="h-3 w-3 animate-spin" />
                 ) : (

@@ -14,7 +14,7 @@ import { SURAH_META } from "@/data/surah-meta";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { formatTime, toArabicNumerals } from "@/lib/utils";
 import { downloadSurahAudio } from "@/lib/quran-audio";
-import { getAllAudioEntries } from "@/lib/db";
+import { getDownloadedAudioMap } from "@/lib/db";
 import { requestPersistentStorageWithToast } from "@/lib/storage-persist";
 
 const TIMER_PRESETS = [10, 15, 20, 30, 45, 60];
@@ -52,13 +52,9 @@ export default function SleepModePage() {
   const [isOnline, setIsOnline] = useState(typeof navigator === "undefined" ? true : navigator.onLine);
 
   const refreshDownloads = useCallback(async () => {
-    const entries = await getAllAudioEntries();
-    const grouped = new Map<string, Set<number>>();
-    for (const e of entries) {
-      const set = grouped.get(e.reciterId) ?? new Set<number>();
-      set.add(e.surahNumber);
-      grouped.set(e.reciterId, set);
-    }
+    // Key-only IDB scan — never loads blob payloads. Safe to call
+    // repeatedly during a 114-surah bulk download on mobile.
+    const grouped = await getDownloadedAudioMap();
     setDownloadedByReciter(grouped);
   }, []);
 
@@ -251,7 +247,7 @@ export default function SleepModePage() {
               data-testid="sleep-offline-empty-state"
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="flex flex-col items-center gap-2 bg-amber-500/10 border border-amber-400/20 rounded-2xl px-4 py-3 text-sm text-amber-200/90 max-w-xs"
+              className="flex flex-col items-center gap-2.5 bg-amber-500/10 border border-amber-400/20 rounded-2xl px-4 py-3 text-sm text-amber-200/90 max-w-xs"
             >
               <div className="flex items-center gap-2 font-medium">
                 <WifiOff className="h-4 w-4 shrink-0" />
@@ -259,9 +255,17 @@ export default function SleepModePage() {
               </div>
               <p className="text-xs text-amber-100/60 text-center leading-relaxed">
                 {language === "ar"
-                  ? "أنت بدون إنترنت الآن. اختر سورة محفوظة بعلامة ✓ أو نزّلها عند توفر الاتصال."
-                  : "You're offline. Pick a surah marked ✓ or download this one once you're back online."}
+                  ? "أنت بدون إنترنت الآن. افتح قائمة السور لاختيار سورة محفوظة بعلامة ✓."
+                  : "You're offline. Open the surah list to pick one marked ✓."}
               </p>
+              <button
+                onClick={() => setActivePanel("surah")}
+                data-testid="sleep-offline-empty-state-cta"
+                className="mt-1 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-400/25 hover:bg-amber-400/35 text-amber-100 text-xs font-medium transition-colors"
+              >
+                <Download className="h-3.5 w-3.5" />
+                {language === "ar" ? "افتح السور المحفوظة" : "Open downloaded surahs"}
+              </button>
             </motion.div>
           )}
         </div>
