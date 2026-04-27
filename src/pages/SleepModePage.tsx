@@ -118,29 +118,37 @@ export default function SleepModePage() {
 
     let failed = 0;
     // Refresh the downloaded-pill state every N surahs (not after every
-    // single one). The progress counter still ticks each iteration —
-    // only the IDB key-scan that powers the per-surah ✓ badges is
-    // throttled, which keeps low-end mobile responsive during a 114-
-    // surah run. A final refresh fires in `finally` regardless.
+    // single one). The progress counter ticks only on actual successes
+    // (failed surahs are reported separately at the end), so the
+    // displayed "n/114" reflects what is truly saved offline. The IDB
+    // key-scan that powers per-surah ✓ badges is throttled, which keeps
+    // low-end mobile responsive during a 114-surah run. A final refresh
+    // fires in `finally` regardless.
     const REFRESH_EVERY = 10;
     let sinceRefresh = 0;
     try {
       for (const surahNumber of remaining) {
         if (ctrl.signal.aborted) throw new DOMException("Aborted", "AbortError");
+        let ok = false;
         try {
           await downloadSurahAudio(targetReciterId, surahNumber, undefined, ctrl.signal);
+          ok = true;
         } catch (err) {
           if (err instanceof Error && err.name === "AbortError") throw err;
           failed += 1;
         }
-        sinceRefresh += 1;
-        if (sinceRefresh >= REFRESH_EVERY) {
-          sinceRefresh = 0;
-          await refreshDownloads();
+        if (ok) {
+          setBulkProgress((prev) =>
+            prev && prev.reciterId === targetReciterId
+              ? { ...prev, done: prev.done + 1 }
+              : prev,
+          );
+          sinceRefresh += 1;
+          if (sinceRefresh >= REFRESH_EVERY) {
+            sinceRefresh = 0;
+            await refreshDownloads();
+          }
         }
-        setBulkProgress((prev) =>
-          prev && prev.reciterId === targetReciterId ? { ...prev, done: prev.done + 1 } : prev,
-        );
       }
       if (failed > 0) {
         toast.warning(

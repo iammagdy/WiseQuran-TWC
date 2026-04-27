@@ -73,6 +73,17 @@ export function SurahSelectorForSleep({
   const isOnline = typeof navigator === "undefined" ? true : navigator.onLine;
 
   const handleDelete = async (surahNumber: number) => {
+    // Confirm before destructive action so a single accidental tap on a
+    // ✓-cached pill doesn't silently free the user's downloaded audio.
+    const meta = SURAH_META[surahNumber - 1];
+    const surahLabel = meta ? (language === "ar" ? meta.name : meta.englishName) : `${surahNumber}`;
+    const confirmMsg =
+      language === "ar"
+        ? `حذف "${surahLabel}" من التحميلات؟`
+        : `Delete "${surahLabel}" from downloads?`;
+    if (typeof window !== "undefined" && typeof window.confirm === "function") {
+      if (!window.confirm(confirmMsg)) return;
+    }
     try {
       await deleteAudio(reciterId, surahNumber);
       onAfterDownload();
