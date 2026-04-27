@@ -2,10 +2,9 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { cn, toArabicNumerals } from "@/lib/utils";
 import { motion } from "framer-motion";
-import { ArchiveRestore, ArchiveX, ArrowLeft, ArrowRight, Bell, BellOff, BookMarked, BookOpen, Check, CheckCircle, ChevronDown, ChevronUp, Clock, CloudOff, Download, FileText, Github, Globe, HardDrive, Info, Loader2, LogIn, LogOut, Mail, Mic, Moon, MoreVertical, Music, Palette, Pause, Play, RefreshCw, RotateCcw, Share, Smartphone, Sparkles, Square, Sun, Target, Trash2, Type, User, Volume2 } from "lucide-react";
+import { ArchiveRestore, ArchiveX, ArrowLeft, ArrowRight, Bell, BellOff, BookMarked, BookOpen, Check, CheckCircle, ChevronDown, ChevronUp, Clock, Download, FileText, Github, Globe, HardDrive, Info, Loader2, Mail, Mic, Moon, MoreVertical, Music, Palette, Pause, Play, RefreshCw, RotateCcw, Share, Smartphone, Sparkles, Square, Sun, Target, Trash2, Type, Volume2 } from "lucide-react";
 import { exportBackup, downloadBackupFile, parseBackupFile, restoreBackup, estimateBackupSize, exportBackupBinary, downloadBackupBlob, restoreBackupFromFile, type BackupSizeEstimate } from "@/lib/backup";
 import { clearAllLocalBookmarks } from "@/lib/bookmarks";
-import { useAuth } from "@/contexts/AuthContext";
 import { ADHAN_VOICES, REMINDER_SOUNDS, ADHAN_STORAGE_KEY, DEFAULT_ADHAN_SETTINGS, TAKBIR_URL, buildAzanSourceList, type AdhanSettings } from "@/lib/adhan-settings";
 import { detectBrowser, getInstallInstructions } from "@/lib/browser-detect";
 import { CALCULATION_METHODS, type CalculationMethod } from "@/lib/prayer-times";
@@ -47,7 +46,6 @@ import FadeSection from "@/components/layout/FadeSection";
 import InstallModal from "@/components/quran/InstallModal";
 import { useReaderPersonalization } from "@/hooks/useReaderPersonalization";
 import { getHijriOffsetDays, setHijriOffsetDays } from "@/hooks/useRamadan";
-import { useSyncQueueContext } from "@/contexts/SyncQueueContext";
 
 const loadDBModule = () => import("@/lib/settings-storage");
 
@@ -167,8 +165,6 @@ export default function SettingsPage() {
   const browserType = detectBrowser();
   const isIOS = browserType === "ios-safari";
   const installInstructions = getInstallInstructions(browserType, language);
-  const { user, signOut } = useAuth();
-  const { pendingCount, flushing, flush } = useSyncQueueContext();
   const navigate = useNavigate();
   const [showChangelog, setShowChangelog] = useState(false);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
@@ -736,102 +732,10 @@ export default function SettingsPage() {
           <div className="flex items-center gap-3 px-1">
             <div className="h-1 flex-1 bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
             <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 shrink-0">
-              {isRTL ? "التخصيص والحساب" : "User & Personalization"}
+              {isRTL ? "التخصيص" : "Personalization"}
             </h2>
             <div className="h-1 flex-1 bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
           </div>
-
-          {/* ─── Account ─── */}
-        <section>
-          <div className="section-title flex items-center gap-1.5">
-            <User className="h-3.5 w-3.5" />
-            {isRTL ? "الحساب" : "Account"}
-          </div>
-          <FadeSection className="rounded-xl bg-card shadow-sm overflow-hidden">
-            {user ? (
-              <div className="px-4 py-4">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-full bg-primary/15 border border-primary/20 flex items-center justify-center shrink-0">
-                    <span className="text-sm font-bold text-primary uppercase">
-                      {user.email?.[0] ?? "U"}
-                    </span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-foreground truncate">{user.email}</p>
-                    {pendingCount > 0 ? (
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <span className="text-xs text-amber-500 flex items-center gap-1">
-                          <CloudOff className="h-3 w-3 shrink-0" />
-                          {isRTL
-                            ? `${toArabicNumerals(String(pendingCount))} في انتظار المزامنة`
-                            : `${pendingCount} pending sync`}
-                        </span>
-                        <button
-                          onClick={() => void flush()}
-                          disabled={flushing || !navigator.onLine}
-                          aria-label={isRTL ? "أعد المحاولة" : "Retry sync"}
-                          className="text-amber-500 hover:text-amber-600 disabled:opacity-40 transition-colors"
-                        >
-                          <RefreshCw className={`h-3 w-3 ${flushing ? "animate-spin" : ""}`} />
-                        </button>
-                      </div>
-                    ) : (
-                      <p className="text-xs text-muted-foreground">{isRTL ? "حساب نشط" : "Active account"}</p>
-                    )}
-                  </div>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
-                  onClick={async () => { await signOut(); }}
-                >
-                  <LogOut className="h-4 w-4 me-2" />
-                  {isRTL ? "تسجيل الخروج" : "Sign Out"}
-                </Button>
-              </div>
-            ) : (
-              <div className="px-4 py-4">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-full bg-muted border border-border flex items-center justify-center shrink-0">
-                    <User className="h-5 w-5 text-muted-foreground" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-foreground">{isRTL ? "غير مسجّل" : "Not signed in"}</p>
-                    {pendingCount > 0 ? (
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <span className="text-xs text-amber-500 flex items-center gap-1">
-                          <CloudOff className="h-3 w-3 shrink-0" />
-                          {isRTL
-                            ? `${toArabicNumerals(String(pendingCount))} في انتظار المزامنة`
-                            : `${pendingCount} pending sync`}
-                        </span>
-                        <button
-                          onClick={() => void flush()}
-                          disabled={flushing || !navigator.onLine}
-                          aria-label={isRTL ? "أعد المحاولة" : "Retry sync"}
-                          className="text-amber-500 hover:text-amber-600 disabled:opacity-40 transition-colors"
-                        >
-                          <RefreshCw className={`h-3 w-3 ${flushing ? "animate-spin" : ""}`} />
-                        </button>
-                      </div>
-                    ) : (
-                      <p className="text-xs text-muted-foreground">{isRTL ? "سجّل الدخول لحفظ تقدمك عبر أجهزتك" : "Sign in to save progress across devices"}</p>
-                    )}
-                  </div>
-                </div>
-                <Button
-                  size="sm"
-                  className="w-full"
-                  onClick={() => navigate("/signin")}
-                >
-                  <LogIn className="h-4 w-4 me-2" />
-                  {isRTL ? "تسجيل الدخول" : "Sign In"}
-                </Button>
-              </div>
-            )}
-          </FadeSection>
-        </section>
 
         {/* ─── Install PWA ─── */}
         {!isInstalled && (
@@ -2598,8 +2502,8 @@ export default function SettingsPage() {
             </p>
             <p className="text-sm leading-relaxed text-muted-foreground" dir={isRTL ? "rtl" : "ltr"}>
               {language === "ar"
-                ? "هذا التطبيق لا يتتبع المستخدمين، ولا يعرض أي إعلانات، ولا يبيع بياناتك لأحد. تبقى قراءاتك ومحفوظاتك وملاحظاتك على جهازك أو في حسابك الشخصي إن اخترت تسجيل الدخول."
-                : "This app does not track users, does not show ads, and does not sell your data. Your reading, memorization, and notes stay on your device — or in your personal account if you choose to sign in."}
+                ? "هذا التطبيق لا يتتبع المستخدمين، ولا يعرض أي إعلانات، ولا يبيع بياناتك لأحد. تبقى قراءاتك ومحفوظاتك وملاحظاتك على جهازك."
+                : "This app does not track users, does not show ads, and does not sell your data. Your reading, memorization, and notes stay on your device."}
             </p>
             <p className="text-xs leading-relaxed text-muted-foreground/80" dir={isRTL ? "rtl" : "ltr"}>
               {language === "ar"

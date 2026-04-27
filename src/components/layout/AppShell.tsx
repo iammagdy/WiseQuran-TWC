@@ -6,7 +6,6 @@ import OfflineBanner from "./OfflineBanner";
 import PageTransition from "./PageTransition";
 import GlobalAudioBar from "@/components/quran/GlobalAudioBar";
 import { AchievementUnlockNotification } from "@/components/AchievementsSheet";
-import BookmarkClaimDialog from "@/components/BookmarkClaimDialog";
 import { useAudioPlayerState } from "@/contexts/AudioPlayerContext";
 import { useTheme } from "@/hooks/useTheme";
 
@@ -40,7 +39,6 @@ export default function AppShell({ children }: Props) {
       </AnimatePresence>
       <BottomNav />
       <AchievementUnlockNotification />
-      <BookmarkClaimDialog />
     </div>
   );
 }

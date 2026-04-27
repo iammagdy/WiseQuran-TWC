@@ -91,6 +91,33 @@ Run all three locally with `pnpm run predeploy`.
 
 ## Recent fixes
 
+### v3.9.1 — Sign-in / sign-up removed (2026-04-27)
+
+The app used to support optional Supabase email/password sign-in for cross-
+device cloud sync. That whole entry path is gone:
+
+- Deleted `src/pages/SignInPage.tsx`, `src/pages/AuthCallbackPage.tsx`,
+  `src/components/AuthModal.tsx`, `src/components/BookmarkClaimDialog.tsx`,
+  and `src/lib/auth-callback.ts`.
+- Removed the `/signin` and `/auth/callback` routes from `src/App.tsx`.
+- Removed the entire **Account** section from `SettingsPage` (avatar, email,
+  pending-sync indicator, Sign In / Sign Out buttons) and dropped its
+  `useSyncQueueContext` consumption.
+- Replaced `src/contexts/AuthContext.tsx` with a tiny stub that always
+  returns `{ user: null, session: null, loading: false }` and exports no
+  `signIn`/`signUp`/`signOut` methods. Existing consumers
+  (`PrayerPage`, `PrayerHistorySheet`, `useSleepModePlayer`,
+  `AppStatusPanel`) keep compiling and naturally take their no-user code
+  paths so all local-first features continue to work.
+- Updated the privacy line in Settings to drop the "in your personal
+  account if you choose to sign in" clause.
+- `AuthProvider` is still mounted in `App.tsx` so `useAuth()` keeps
+  returning a stable value to the tree.
+
+The Supabase client (`src/lib/supabase.ts`) and the SyncQueue infrastructure
+remain in place — they simply have no auth source any more, so any code that
+checks `if (user) syncToCloud(...)` short-circuits.
+
 ### v3.9.0 — Fully-offline Sleep Mode (2026-04-27)
 
 Sleep Mode previously always streamed audio over the network. With the PWA

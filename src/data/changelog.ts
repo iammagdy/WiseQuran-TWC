@@ -1,4 +1,4 @@
-export const APP_VERSION = "3.9.0";
+export const APP_VERSION = "3.9.1";
 
 export interface ChangelogCategory {
   features?: string[];
@@ -14,6 +14,22 @@ export interface ChangelogEntry {
 }
 
 export const changelog: ChangelogEntry[] = [
+  {
+    version: "3.9.1",
+    date: "2026-04-27",
+    ar: {
+      improvements: [
+        "تم إزالة تسجيل الدخول وإنشاء الحساب بالكامل من التطبيق. يبقى التطبيق محلياً على جهازك بالكامل، دون أي حسابات أو مزامنة سحابية.",
+        "إعدادات الحساب وأزرار الدخول/الخروج تمت إزالتها من شاشة الإعدادات.",
+      ],
+    },
+    en: {
+      improvements: [
+        "Sign-in and sign-up have been removed entirely. The app is now fully on-device — no accounts, no cloud sync.",
+        "The Account section and Sign In / Sign Out buttons have been removed from Settings.",
+      ],
+    },
+  },
   {
     version: "3.9.0",
     date: "2026-04-27",
