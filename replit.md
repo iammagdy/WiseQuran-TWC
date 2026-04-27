@@ -88,3 +88,29 @@ Run all three locally with `pnpm run predeploy`.
 - All Supabase SQL migrations applied to Replit PostgreSQL (`DATABASE_URL`).
 - `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` stored as Replit Secrets so Supabase auth/sync works.
 - Workflow: `Start application` runs `pnpm run dev` on port 5000.
+
+## Recent fixes
+
+### v3.8.1 — iOS Sleep Mode (2026-04-27)
+
+Sleep Mode silently failed on iPhone (especially when the PWA was installed to
+the Home Screen) while regular Listening mode worked everywhere. Two iOS-only
+issues in `src/hooks/useSleepModePlayer.ts`:
+
+1. The hook created a raw `new Audio()` that lacked iOS-required attributes
+   (`playsInline`, `webkit-playsinline`, `crossOrigin="anonymous"`,
+   `preload="auto"`).
+2. It awaited `getReciterAudioUrl(...)` *between* the user gesture and the real
+   `.play()` call, dropping iOS's user-activation flag for that audio element.
+
+Fix: route Sleep Mode through `mobileAudioManager` on a dedicated `"sleep"`
+channel (added to `ManagedAudioChannel` and `primeAll` in
+`src/lib/mobile-audio.ts`). `play()` now grabs the shared, properly-configured
+audio element via `mobileAudioManager.getAudio("sleep")` and calls
+`mobileAudioManager.prime("sleep")` synchronously inside the user-gesture tick
+so the silent-unlock `.play()` registers the element as user-activated. Async
+work (URL fetch, real `play(url)`) then runs safely on the activated element.
+A monotonic `playTokenRef` guards against rapid play/stop/play races so stale
+async continuations cannot mutate state after a newer action. The sleep channel
+is fully isolated from Listening mode's `"quran"` channel so the two cannot
+interfere.

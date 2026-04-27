@@ -1,4 +1,4 @@
-export const APP_VERSION = "3.8.0";
+export const APP_VERSION = "3.8.1";
 
 export interface ChangelogCategory {
   features?: string[];
@@ -14,6 +14,20 @@ export interface ChangelogEntry {
 }
 
 export const changelog: ChangelogEntry[] = [
+  {
+    version: "3.8.1",
+    date: "2026-04-27",
+    ar: {
+      fixes: [
+        "تم إصلاح عدم عمل وضع النوم على أجهزة آيفون (خصوصاً عند تثبيت التطبيق على الشاشة الرئيسية): أصبح يستخدم نفس مسار الصوت الآمن المستعمل في وضع الاستماع، مع تهيئة عناصر iOS الضرورية (playsinline، وفك القفل الصامت داخل لمسة المستخدم).",
+      ],
+    },
+    en: {
+      fixes: [
+        "Fixed Sleep Mode not working on iPhone (especially when the app is installed to the Home Screen): it now goes through the same iOS-safe audio pipeline as Listening, with the required playsinline attributes and a silent unlock that completes inside the user gesture.",
+      ],
+    },
+  },
   {
     version: "3.8.0",
     date: "2026-04-19",
