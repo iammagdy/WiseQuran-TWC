@@ -58,6 +58,25 @@ export function SurahSelectorForSleep({
     };
   }, []);
 
+  // Live online/offline state — the parent page tracks connectivity but
+  // we also subscribe locally so the inline "Offline" badge and the
+  // download button's enabled state both react instantly when the
+  // device flips connectivity (Wi-Fi handoff, airplane mode, etc.)
+  // without waiting for a parent re-render.
+  const [isOnline, setIsOnline] = useState(
+    typeof navigator === "undefined" ? true : navigator.onLine,
+  );
+  useEffect(() => {
+    const onOnline = () => setIsOnline(true);
+    const onOffline = () => setIsOnline(false);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+    };
+  }, []);
+
   const suggestedSurahs = SURAH_META.filter((s) => SLEEP_SURAHS.includes(s.number));
   const allFiltered = SURAH_META.filter(
     (s) =>
@@ -69,8 +88,6 @@ export function SurahSelectorForSleep({
   const displayList = showAll ? allFiltered : suggestedSurahs;
   // ⚡ Bolt: O(1) direct indexing
   const selectedSurah = SURAH_META[selected - 1];
-
-  const isOnline = typeof navigator === "undefined" ? true : navigator.onLine;
 
   const handleDelete = async (surahNumber: number) => {
     // Confirm before destructive action so a single accidental tap on a
