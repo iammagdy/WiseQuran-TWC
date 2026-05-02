@@ -41,7 +41,24 @@ A modern, feature-rich, offline-first Progressive Web App (PWA) for reading the 
 
 - **Code splitting:**
   - Route-level: every top-level page is `React.lazy`-loaded (Home/Quran/Sleep/Stats/Settings/etc.) so the home critical path ships only the splash, AppShell, and tab bar.
-  - Vendor chunks (vite.config.ts `manualChunks`): `react-vendor` (react/react-dom/react-router/scheduler), `motion-vendor` (framer-motion), `ui-vendor` (Radix + cmdk + vaul), `data-vendor` (Supabase + TanStack + idb), `charts-vendor` (recharts + d3-*), `vendor` (everything else). Stable names so the SW precache manifest stays deterministic across builds.
+  - **Domain-isolated vendor chunks** (vite.config.ts `manualChunks`) — each third-party concern lives in its own chunk so the home critical path only ships what the home shell actually imports. As of Task #13:
+    - `react-vendor` (142 KB) — react / react-dom / scheduler. **Note**: react-router lives in `router-vendor`, NOT here. Pulling react-router in created a `vendor → react-vendor → vendor` bundling cycle via `@remix-run/router`; isolating react/react-dom/scheduler (none of which import outward) breaks it.
+    - `router-vendor` (22 KB) — react-router-dom + @remix-run/router + history.
+    - `motion-vendor` (128 KB) — framer-motion + motion-dom + motion-utils. The matcher must catch all three because framer-motion 12+ ships its core as separate `motion-*` packages; matching only `framer-motion` leaks ~50 KB into the generic vendor chunk.
+    - `radix-vendor` (114 KB) — @radix-ui/* + @floating-ui/* + cmdk + vaul. Only loaded by Settings / dialogs / sheets.
+    - `supabase-vendor` (175 KB) — @supabase/* + iceberg-js (transitive realtime dep). Sleep Mode + cloud bookmarks only; never on home.
+    - `query-vendor` (44 KB) — @tanstack/react-query + react-virtual. Quran reader / Hifz only.
+    - `icons-vendor` (36 KB) — lucide-react. The home tab bar uses a handful of icons, so this *is* on the entry path, but isolating it lets the SW precache it once and share across routes.
+    - `form-vendor` — react-hook-form + @hookform/* + zod. Settings forms only.
+    - `date-vendor` — date-fns. Hifz / streaks only.
+    - `storage-vendor` — idb. Quran reader / offline only.
+    - `datepicker-vendor` — react-day-picker. Settings calendar only.
+    - `carousel-vendor` — embla-carousel-react. Onboarding / install guide only.
+    - `workbox-vendor` — workbox-window registration shim.
+    - `panels-vendor` — react-resizable-panels. DevKit only.
+    - `charts-vendor` (292 KB) — recharts + d3-*. Stats only.
+    - `vendor` (147 KB) — small leaf libs the home shell legitimately needs (sonner, clsx, tailwind-merge, web-vitals, next-themes, tslib, class-variance-authority, etc.).
+  - Stable chunk names so the SW precache manifest stays deterministic across builds.
   - **Recharts is lazy-loaded inside StatsPage** (`src/components/stats/WeeklyChartLazy.tsx`) — `charts-vendor` only arrives when the user opens `/stats`.
 - **SettingsPage chunk** is prefetched during idle time after app startup (alongside main tabs).
 - **Audio byte tracking**: `db.ts` maintains `wise-audio-bytes-total` in localStorage (updated by `saveAudio`/`deleteAudio`/`clearAllAudio`). `getStorageStats()` reads this O(1) instead of loading all audio ArrayBuffers from IDB.
@@ -56,7 +73,8 @@ The audio playback chain (Sleep Mode + Quran reader + Supabase fire-and-forget w
 ## Testing
 
 - `pnpm test` — unit & integration tests via Vitest (jsdom).
-- `pnpm test:e2e` — Playwright E2E suite (`./e2e/`). Specs cover the Sleep Mode play path and the Quran reader Surah-1 render. Runs against the local Vite dev server (port 5000) on Desktop Chromium + iPhone 14 Mobile Safari profiles.
+- `pnpm test:e2e` — Playwright E2E suite (`./e2e/`). Specs cover the Sleep Mode play path and the Quran reader Surah-1 render. Runs against the local Vite dev server (port 5000) on Desktop Chromium + iPhone 14 Mobile Safari profiles. **Each spec installs an `HTMLMediaElement.prototype.play` spy via `page.addInitScript` BEFORE navigation and hard-asserts at least one `play()` invocation after the user clicks Play** — this is the behavioural assertion that catches "tap Play, nothing happens" regressions; smoke-only "page renders" assertions are insufficient for the audio-critical paths. Recitation CDN URLs are stubbed with an inline silent MP3 so specs don't depend on the public network.
+- `pnpm test:ci` — runs `vitest run` followed by Playwright. This is the gate downstream CI environments should call to enforce both unit-test green and the audio-play behavioural assertion on every PR.
 
 ## Development
 

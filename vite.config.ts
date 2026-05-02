@@ -96,22 +96,109 @@ export default defineConfig(({ mode }) => ({
             return "react-vendor";
           }
 
-          if (id.includes("framer-motion")) {
+          // framer-motion 12+ ships its core as `motion-dom` +
+          // `motion-utils`, so a substring match on "framer-motion"
+          // alone leaks ~50 KB of motion code into the generic
+          // `vendor` chunk. Match all three so the entire animation
+          // runtime is co-located in one route-lazy chunk.
+          if (
+            id.includes("framer-motion") ||
+            id.includes("motion-dom") ||
+            id.includes("motion-utils")
+          ) {
             return "motion-vendor";
           }
 
-          if (id.includes("@radix-ui") || id.includes("cmdk") || id.includes("vaul")) {
-            return "ui-vendor";
-          }
-
-          if (id.includes("@supabase") || id.includes("@tanstack") || id.includes("idb")) {
-            return "data-vendor";
-          }
-
+          // Recharts + d3 belong on /stats only — pulled out so the
+          // home critical path never ships them.
           if (id.includes("recharts") || id.includes("d3-")) {
             return "charts-vendor";
           }
 
+          // Domain-isolated vendor chunks. Splitting these out of the
+          // generic `vendor` bag is what brings the home initial JS
+          // payload below the 250 KB target: each route now only
+          // pulls the chunks it actually imports, instead of dragging
+          // the entire ecosystem along with the entry bundle.
+          //
+          // - supabase-vendor: only loaded by features that talk to
+          //   Supabase (Sleep Mode session sync, optional cloud
+          //   bookmarks). Home shell never touches it.
+          // - query-vendor: TanStack Query / Virtual — used by Quran
+          //   reader and Hifz; not on home.
+          // - router-vendor: react-router-dom + @remix-run/router +
+          //   history. Imported by the entry chunk, but isolated so
+          //   it doesn't drag along everything else with it.
+          // - radix-vendor: @radix-ui/* primitives — only loaded
+          //   transitively by Settings / dialogs / sheets.
+          // - icons-vendor: lucide-react. The home tab bar uses a
+          //   handful of icons, so this DOES land on the entry path,
+          //   but isolating it lets the SW precache it once and
+          //   share it across every route.
+          // - form-vendor: react-hook-form + @hookform/* + zod.
+          //   Used by Settings forms; not on home.
+          // - date-vendor: date-fns — Hifz / streaks only.
+          // - storage-vendor: idb — Quran reader / offline; not home.
+          // - misc-vendor: small leaf libs that only the home shell
+          //   needs (sonner toast, clsx, tailwind-merge, embla, etc.)
+          // `iceberg-js` ships as a transitive dep of @supabase/realtime;
+          // group it with supabase so home doesn't pay for realtime.
+          if (id.includes("@supabase") || id.includes("iceberg-js")) {
+            return "supabase-vendor";
+          }
+          if (id.includes("@tanstack")) return "query-vendor";
+          if (
+            id.includes("react-router") ||
+            id.includes("@remix-run/router") ||
+            /[\\/]node_modules[\\/]history[\\/]/.test(id)
+          ) {
+            return "router-vendor";
+          }
+          if (
+            id.includes("@radix-ui") ||
+            id.includes("@floating-ui") ||
+            id.includes("cmdk") ||
+            id.includes("vaul")
+          ) {
+            return "radix-vendor";
+          }
+          if (id.includes("lucide-react")) return "icons-vendor";
+          if (
+            id.includes("react-hook-form") ||
+            id.includes("@hookform") ||
+            /[\\/]node_modules[\\/]zod[\\/]/.test(id)
+          ) {
+            return "form-vendor";
+          }
+          if (/[\\/]node_modules[\\/]date-fns[\\/]/.test(id)) {
+            return "date-vendor";
+          }
+          if (/[\\/]node_modules[\\/]idb[\\/]/.test(id)) {
+            return "storage-vendor";
+          }
+
+          // react-day-picker is only loaded by Settings (download
+          // calendar) and Ramadan / Hifz date pickers — never by the
+          // home shell. Pulling it out of `vendor` keeps the home
+          // critical path under the 250 KB JS budget.
+          if (id.includes("react-day-picker")) return "datepicker-vendor";
+
+          // Embla carousel — only used by the install-guide modal and
+          // the onboarding tour. Lazy on every other route.
+          if (id.includes("embla-carousel")) return "carousel-vendor";
+
+          // Workbox runtime helpers — bundled with the registration
+          // shim, but the underlying SW lives in dist/sw.js so the
+          // main thread only needs the small `workbox-window` slice.
+          if (id.includes("workbox-")) return "workbox-vendor";
+
+          // DevKit-only panels primitive.
+          if (id.includes("react-resizable-panels")) return "panels-vendor";
+
+          // Everything else (sonner, clsx, tailwind-merge,
+          // tailwindcss-animate, class-variance-authority, web-vitals,
+          // next-themes, input-otp, etc.) lands here. These are all
+          // small leaf libs that the home shell legitimately needs.
           return "vendor";
         },
       },

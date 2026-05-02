@@ -17,19 +17,56 @@ import { join } from "node:path";
 // are the *ceiling*, set ~30% above the current measured size so normal
 // growth doesn't trip the alarm but a regression of 100KB+ does.
 const BUDGETS_KB = {
-  // Main entry — currently ~67 KB gzipped after Phase A.
+  // Main entry — currently ~74 KB gzipped after Task #13.
   "index": 100,
-  // Shared vendor bundle (React, react-dom, react-router, etc.) — ~160 KB.
-  "vendor": 220,
-  // Supabase + tanstack-query + idb — ~60 KB.
-  "data-vendor": 90,
-  // Radix-UI primitives — ~29 KB.
-  "ui-vendor": 50,
-  // framer-motion — ~12 KB.
-  "motion-vendor": 30,
-  // Recharts — ~76 KB. Lazy-loaded by /stats only; budget here is a
-  // safety net so it doesn't silently double in size.
+  // Generic catch-all for small leaf libs (sonner, clsx, web-vitals,
+  // tslib, next-themes, etc.) the home shell needs. Heavy ecosystems
+  // are isolated into their own *-vendor chunks below — if this
+  // creeps back up it usually means a new dep slipped in without a
+  // matchChunks rule, OR an existing matcher stopped catching a
+  // transitive dep (motion-utils / iceberg-js have done this before).
+  "vendor": 75,
+  // React core only (react / react-dom / scheduler). react-router
+  // intentionally lives in router-vendor; see vite.config.ts.
+  "react-vendor": 60,
+  // react-router-dom + @remix-run/router + history.
+  "router-vendor": 15,
+  // framer-motion + motion-dom + motion-utils. The matcher must
+  // catch all three or the motion runtime fragments back into vendor.
+  "motion-vendor": 55,
+  // @radix-ui/* + @floating-ui/* + cmdk + vaul. Settings / dialogs.
+  "radix-vendor": 50,
+  // @supabase/* + iceberg-js (transitive realtime dep). Lazy on
+  // Sleep Mode + cloud bookmarks; never on home.
+  "supabase-vendor": 65,
+  // @tanstack/react-query + react-virtual. Quran reader / Hifz only.
+  "query-vendor": 25,
+  // lucide-react. Home tab bar uses a handful of icons.
+  "icons-vendor": 20,
+  // recharts + d3-*. Lazy-loaded by /stats only.
   "charts-vendor": 110,
+  // idb. Quran reader / offline only.
+  "storage-vendor": 5,
+  // embla-carousel-react. Onboarding / install guide only.
+  "carousel-vendor": 15,
+  // workbox-window registration shim. Only the SW registrar pulls
+  // this in.
+  "workbox-vendor": 5,
+  //
+  // CHUNKS INTENTIONALLY UNTRACKED:
+  // - `form-vendor` (react-hook-form + @hookform/* + zod): Rollup
+  //   inlines this into SettingsPage when no other route imports the
+  //   form stack, so a separate chunk is not always emitted. The
+  //   SettingsPage budget already caps the combined size.
+  // - `date-vendor` (date-fns), `datepicker-vendor` (react-day-picker),
+  //   `panels-vendor` (react-resizable-panels): same story — only
+  //   one route consumer each, so Rollup may co-locate them in the
+  //   route chunk rather than emit a standalone vendor chunk. They
+  //   are still routed through their own manualChunks rules in
+  //   vite.config.ts so they CAN be split out if a second consumer
+  //   appears, but until then there is no separate chunk to budget.
+  // If a future build emits these chunks separately they should be
+  // added here with budgets sized ~30% above their measured size.
 };
 
 const DIST_ASSETS = join(process.cwd(), "dist", "assets");

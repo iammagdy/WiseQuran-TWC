@@ -13,6 +13,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
+    "test:ci": "pnpm run test && pnpm run test:e2e",
     "check:bundle": "node scripts/check-bundle-budget.mjs",
     "check:no-undef": "node scripts/check-no-undef.mjs",
     "check:build-env": "node scripts/check-build-env.mjs",
