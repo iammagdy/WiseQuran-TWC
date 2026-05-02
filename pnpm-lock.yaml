@@ -32,9 +32,6 @@ importers:
       '@fontsource/scheherazade-new':
         specifier: ^5.2.8
         version: 5.2.8
-      '@hookform/resolvers':
-        specifier: ^3.10.0
-        version: 3.10.0(react-hook-form@7.71.2(react@18.3.1))
       '@radix-ui/react-accordion':
         specifier: ^1.2.11
         version: 1.2.12(@types/react-dom@18.3.7(@types/react@18.3.28))(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -1193,11 +1190,6 @@ packages:
 
   '@fontsource/scheherazade-new@5.2.8':
     resolution: {integrity: sha512-4OdkcXYa6fISYox9HdsAJT+MxLh4yrMw94pR77j/C48qnJm4DSOl5H/6fHz25pmZQ4iYQBjfLVMthnCgM+6tWQ==}
-
-  '@hookform/resolvers@3.10.0':
-    resolution: {integrity: sha512-79Dv+3mDF7i+2ajj7SkypSKHhl1cbln1OGavqrsF7p6mbUv11xpqpacPsGDCTRvCSjEEIez2ef1NveSVL3b0Ag==}
-    peerDependencies:
-      react-hook-form: ^7.0.0
 
   '@humanfs/core@0.19.1':
     resolution: {integrity: sha512-5DyQ4+1JEUzejeK1JGICcideyfUbGixgS9jNgex5nqkW+cY7WZhxBigmieN5Qnw9ZosSNVC9KQKyb+GUaGyKUA==}
@@ -5873,10 +5865,6 @@ snapshots:
   '@fontsource/noto-sans-arabic@5.2.10': {}
 
   '@fontsource/scheherazade-new@5.2.8': {}
-
-  '@hookform/resolvers@3.10.0(react-hook-form@7.71.2(react@18.3.1))':
-    dependencies:
-      react-hook-form: 7.71.2(react@18.3.1)
 
   '@humanfs/core@0.19.1': {}
 

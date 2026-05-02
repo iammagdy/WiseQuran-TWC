@@ -29,7 +29,6 @@
     "@fontsource/jost": "^5.2.8",
     "@fontsource/noto-sans-arabic": "^5.2.10",
     "@fontsource/scheherazade-new": "^5.2.8",
-    "@hookform/resolvers": "^3.10.0",
     "@radix-ui/react-accordion": "^1.2.11",
     "@radix-ui/react-alert-dialog": "^1.1.14",
     "@radix-ui/react-aspect-ratio": "^1.1.7",
