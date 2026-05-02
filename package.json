@@ -98,7 +98,16 @@
       "@swc/core",
       "esbuild",
       "sharp"
-    ]
+    ],
+    "overrides": {
+      "serialize-javascript": "^7.0.5",
+      "picomatch@<2.3.2": "^2.3.2",
+      "picomatch@>=4.0.0 <4.0.4": "^4.0.4",
+      "brace-expansion@<2.0.3": "^2.0.3",
+      "brace-expansion@>=4.0.0 <5.0.5": "^5.0.5",
+      "esbuild@<0.25.0": "^0.25.0",
+      "postcss@<8.5.10": "^8.5.13"
+    }
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
@@ -119,7 +128,7 @@
     "globals": "^15.15.0",
     "jsdom": "^20.0.3",
     "playwright-chromium": "^1.59.1",
-    "postcss": "^8.5.6",
+    "postcss": "^8.5.13",
     "puppeteer-core": "^24.41.0",
     "sharp": "^0.34.5",
     "tailwindcss": "^3.4.17",

@@ -122,6 +122,25 @@ Run all three locally with `pnpm run predeploy`.
 
 ## Recent fixes
 
+### Maintenance — Security advisory cleanup (2026-05-02)
+
+`pnpm audit --prod` baseline was 13 advisories (4 high, 9 moderate). Both top-level packages
+called out by Task #19 (`vite-plugin-pwa` and `tailwindcss`) were already at their highest
+stable releases (1.2.0 and v3-lts 3.4.19), so the advisories live in transitive deps. Cleared
+via `pnpm.overrides` in `package.json` (no major-version bumps, no API surface changes):
+
+- `serialize-javascript` → `^7.0.5` (was 6.0.2 via workbox-build → @rollup/plugin-terser; clears 1 high + 1 moderate)
+- `picomatch@<2.3.2` → `^2.3.2`, `picomatch@>=4.0.0 <4.0.4` → `^4.0.4` (was 2.3.1 / 4.0.3; clears 2 high + 2 moderate)
+- `brace-expansion@<2.0.3` → `^2.0.3`, `brace-expansion@>=4.0.0 <5.0.5` → `^5.0.5` (clears 2 moderates)
+- `esbuild@<0.25.0` → `^0.25.0` (was 0.21.5 via vite peer; clears 1 moderate)
+- `postcss@<8.5.10` → `^8.5.13` (XSS in CSS stringify; also bumped top-level postcss devDep from ^8.5.6 → ^8.5.13)
+
+Result: **13 → 3 advisories**. Remaining (deferred per task scope):
+- `lodash` (1 high + 1 moderate) via `recharts` — bumping recharts requires a charts-API audit, deferred.
+- `vite ≤6.4.1` (1 moderate) — no 5.x backport exists; vite 6.x is a major bump (deferred).
+
+Build chunk parity verified — react-vendor / motion-vendor / charts-vendor / supabase-vendor / radix-vendor / etc. all still emit at the documented sizes; PWA still precaches 90 entries (~2.97 MiB).
+
 ### v3.9.5 — Sleep Mode iOS in-app diagnostic logger (2026-05-02)
 
 The previous v3.9.4 fixes did not resolve the user-reported "tap Play
