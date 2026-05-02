@@ -45,7 +45,7 @@ export default function QiblaPage() {
   const [compassAccuracy, setCompassAccuracy] = useState<AccuracyLevel>("medium");
   const [compassErrorKey, setCompassErrorKey] = useState<string | null>(null);
   // iOS 13+ requires DeviceOrientationEvent.requestPermission() from a user gesture.
-  const iosNeedsPermission = typeof (DeviceOrientationEvent as any).requestPermission === "function";
+  const iosNeedsPermission = typeof (DeviceOrientationEvent as unknown as { requestPermission?: () => Promise<string> }).requestPermission === "function";
   const [compassStarted, setCompassStarted] = useState<boolean>(!iosNeedsPermission);
   const [isLocked, setIsLocked] = useState(false);
   const [lockedHeading, setLockedHeading] = useState<number | null>(null);
@@ -82,10 +82,10 @@ export default function QiblaPage() {
     if (!compassStarted) return;
 
     const handleOrientation = (e: DeviceOrientationEvent) => {
-      // @ts-ignore – webkitCompassHeading is Safari/iOS specific and already True North
+      // @ts-expect-error – webkitCompassHeading is Safari/iOS specific and already True North
       const webkitHeading: number | undefined = e.webkitCompassHeading;
 
-      // @ts-ignore
+      // @ts-expect-error – webkitCompassAccuracy is Safari/iOS-only
       const accuracy = e.webkitCompassAccuracy;
 
       let rawHeading: number | null = null;
@@ -135,13 +135,13 @@ export default function QiblaPage() {
     const supportsAbsolute = "ondeviceorientationabsolute" in window;
 
     if (supportsAbsolute) {
-      window.addEventListener("deviceorientationabsolute" as any, handleOrientation, true);
+      window.addEventListener("deviceorientationabsolute" as keyof WindowEventMap, handleOrientation as EventListener, true);
     }
     window.addEventListener("deviceorientation", handleOrientation, true);
 
     return () => {
       if (supportsAbsolute) {
-        window.removeEventListener("deviceorientationabsolute" as any, handleOrientation, true);
+        window.removeEventListener("deviceorientationabsolute" as keyof WindowEventMap, handleOrientation as EventListener, true);
       }
       window.removeEventListener("deviceorientation", handleOrientation, true);
       if (rafId.current) cancelAnimationFrame(rafId.current);
@@ -154,7 +154,7 @@ export default function QiblaPage() {
       return;
     }
     try {
-      const response: string = await (DeviceOrientationEvent as any).requestPermission();
+      const response: string = await (DeviceOrientationEvent as unknown as { requestPermission: () => Promise<string> }).requestPermission();
       if (response === "granted") {
         setCompassErrorKey(null);
         setCompassStarted(true);

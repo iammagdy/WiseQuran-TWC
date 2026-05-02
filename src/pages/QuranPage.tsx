@@ -169,8 +169,6 @@ export default function QuranPage() {
     return `${surahsPart}${audioPart}`;
   })();
 
-  const progress = Math.min((todayCount / goal) * 100, 100);
-
   const sectionLabels: Record<DashboardSectionId, string> = {
     "next-prayer": language === "ar" ? "موعد الصلاة القادمة" : "Next prayer",
     "featured-resume": language === "ar" ? "متابعة سريعة" : "Featured resume",
@@ -202,7 +200,7 @@ export default function QuranPage() {
       const [h, m] = times[p as keyof typeof times].split(":").map(Number);
       const pMinutes = h * 60 + m;
       if (pMinutes > nowMinutes) {
-        next = { name: t(p as any), time: times[p as keyof typeof times] };
+        next = { name: t(p as Parameters<typeof t>[0]), time: times[p as keyof typeof times] };
         break;
       }
     }
@@ -632,9 +630,6 @@ export default function QuranPage() {
       navigate(`/surah/${surahNumber}`);
     }
   };
-
-  const surahListTitle =
-    view === "surahs_listening" ? t("mode_listening") : t("mode_reading");
 
   const filteredSurahs = surahSearch.trim()
     ? surahs.filter((s) => {

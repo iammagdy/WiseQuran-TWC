@@ -79,17 +79,6 @@ export default function HifzPage() {
     return t("strong");
   };
 
-  const handleCycleStatus = (surahNumber: number) => {
-    const current = getStatus(surahNumber);
-    cycleStatus(surahNumber);
-    if (current === "reading") {
-      review.addToReview(surahNumber);
-    }
-    if (current === "memorized") {
-      review.removeFromReview(surahNumber);
-    }
-  };
-
   const handleSetStatus = (surahNumber: number, newStatus: HifzStatus) => {
     const current = getStatus(surahNumber);
     setStatus(surahNumber, newStatus);

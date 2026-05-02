@@ -237,7 +237,7 @@ export default function PrayerPage() {
               <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">{t("next_prayer")}</p>
               <div className="flex items-center gap-2 mt-0.5">
                 <span className="text-xl">{heroPrayer.icon}</span>
-                <span className="text-lg font-bold text-foreground">{t(heroPrayer.id as any)}</span>
+                <span className="text-lg font-bold text-foreground">{t(heroPrayer.id as Parameters<typeof t>[0])}</span>
               </div>
             </div>
             {streak > 0 && (
@@ -380,7 +380,7 @@ export default function PrayerPage() {
                     "font-bold text-sm",
                     done ? "line-through text-muted-foreground" : isNext ? "text-primary" : "text-foreground"
                   )}>
-                    {t(prayer.id as any)}
+                    {t(prayer.id as Parameters<typeof t>[0])}
                   </p>
                   {(() => {
                     const v = streaksByPrayer[prayer.id] ?? 0;
@@ -394,7 +394,7 @@ export default function PrayerPage() {
                             ? "bg-accent/12 border-accent/25 text-accent"
                             : "bg-muted/40 border-border/40 text-muted-foreground/70"
                         )}
-                        aria-label={`${t(prayer.id as any)}: ${label}`}
+                        aria-label={`${t(prayer.id as Parameters<typeof t>[0])}: ${label}`}
                       >
                         {active && <Flame className="h-2.5 w-2.5" />}
                         {label}

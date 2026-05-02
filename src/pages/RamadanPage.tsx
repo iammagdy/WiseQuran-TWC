@@ -4,7 +4,7 @@ import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { AlertCircle, ArrowLeft, ArrowRight, BookOpen, Check, RefreshCw } from "lucide-react";
-import { useRamadan, getRamadanDay } from "@/hooks/useRamadan";
+import { useRamadan } from "@/hooks/useRamadan";
 import { DAILY_CHECKLIST, RAMADAN_ACTIVITIES } from "@/lib/ramadan-data";
 import { juzData } from "@/data/juz-hizb-data";
 import { toArabicNumerals } from "@/lib/utils";

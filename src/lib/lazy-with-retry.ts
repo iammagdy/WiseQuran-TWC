@@ -30,6 +30,8 @@ function isChunkLoadError(err: unknown): boolean {
  *      rethrow so ErrorBoundary can render the offline-friendly
  *      fallback instead of looping.
  */
+// React.lazy's own type uses ComponentType<any>; we mirror that to stay assignment-compatible.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- matches React.lazy's generic constraint
 export function lazyWithRetry<T extends ComponentType<any>>(
   factory: () => Promise<{ default: T }>,
   chunkName: string,

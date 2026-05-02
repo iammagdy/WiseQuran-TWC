@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo, type ReactNode } from "react";
 import { resolveAudioSource, cachePlayingAudio } from "@/lib/quran-audio";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
-import { DEFAULT_RECITER, getReciterById, getReciterAyahAudioUrl, getReciterAudioUrls } from "@/lib/reciters";
+import { DEFAULT_RECITER, getReciterById, getReciterAudioUrls } from "@/lib/reciters";
 import { fetchChapterRecitation, findCurrentAyahByTime, type AyahTimestamp } from "@/lib/ayah-timestamps";
 import { SURAH_META } from "@/data/surah-meta";
 import { toast } from "sonner";
@@ -462,7 +462,6 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       hasPrev,
       hasNext,
     }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [stableState, reciterId, play, togglePlayPause, seek, seekToAyah, stop, setPlaybackRate, setOnAyahEnded, playNextSurah, playPreviousSurah, hasPrev, hasNext]
   );
 

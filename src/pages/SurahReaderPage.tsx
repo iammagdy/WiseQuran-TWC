@@ -18,7 +18,6 @@ import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { useDailyReading } from "@/hooks/useDailyReading";
 import { useStreak } from "@/hooks/useStreak";
 import { cn, toArabicNumerals, stripBismillah } from "@/lib/utils";
-import SurahBottomBar from "@/components/quran/SurahBottomBar";
 import { useAudioPlayerState, useAudioPlayerAyah } from "@/hooks/useAudioPlayer";
 import { DEFAULT_TAFSIR, TAFSIR_EDITIONS, ENGLISH_TAFSIR_ID } from "@/data/tafsir-editions";
 import { DEFAULT_TRANSLATION, TRANSLATION_EDITIONS } from "@/data/translation-editions";

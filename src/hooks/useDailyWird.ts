@@ -1,5 +1,4 @@
 import { useLocalStorage } from "./useLocalStorage";
-import { juzData } from "@/data/juz-hizb-data";
 import { SURAH_META } from "@/data/surah-meta";
 import { useDeviceId } from "./useDeviceId";
 import { enqueuedSupabaseWrite } from "@/lib/syncQueue";
@@ -80,7 +79,6 @@ export function useDailyWird() {
         if (count === startAyahGlobal) {
           startSurah = s.number;
           startAyah = a;
-          foundStart = true;
         }
         if (count === endAyahGlobal) {
           endSurah = s.number;

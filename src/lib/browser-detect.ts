@@ -8,7 +8,7 @@ export interface IOSVersionParts {
 export function detectBrowser(): BrowserType {
   const ua = navigator.userAgent;
 
-  if (/iPad|iPhone|iPod/i.test(ua) && !(window as any).MSStream) {
+  if (/iPad|iPhone|iPod/i.test(ua) && !(window as Window & { MSStream?: unknown }).MSStream) {
     return "ios-safari";
   }
 

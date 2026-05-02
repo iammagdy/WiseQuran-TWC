@@ -8,7 +8,6 @@ import { toArabicNumerals } from "@/lib/utils";
 // Default coordinates (Cairo)
 const DEFAULT_LAT = 30.0444;
 const DEFAULT_LNG = 31.2357;
-const DEFAULT_TZ = 2;
 
 const DEG = Math.PI / 180;
 const RAD = 180 / Math.PI;

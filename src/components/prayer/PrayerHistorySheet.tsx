@@ -216,7 +216,6 @@ export default function PrayerHistorySheet({ open, onClose }: PrayerHistorySheet
                   <div className="space-y-1">
                     {dateRange.map((date) => {
                       const day = history[date] ?? {};
-                      const doneCount = PRAYERS.filter((p) => day[p]).length;
                       const d = new Date(date + "T00:00:00");
                       const label = d.toLocaleDateString(language === "ar" ? "ar-EG" : "en-US", {
                         month: "short",

@@ -72,7 +72,6 @@ export default function NowPlayingScreen({ open, onOpenChange }: NowPlayingScree
   const [loadingAyahs, setLoadingAyahs] = useState(false);
   const [speed, setSpeed] = useState(1);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
-  const currentAyahRef = useRef<HTMLDivElement>(null);
   const ayahRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
   useEffect(() => {

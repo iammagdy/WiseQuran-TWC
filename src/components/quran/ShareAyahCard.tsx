@@ -1,4 +1,4 @@
-import { useRef, useCallback } from "react";
+import { useCallback } from "react";
 import { Share2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 

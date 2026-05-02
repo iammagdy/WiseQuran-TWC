@@ -10,8 +10,6 @@
 //   logger.debug("something", value);
 // over bare `console.log(...)`.
 
-/* eslint-disable no-console */
-
 type LogArgs = readonly unknown[];
 
 const IS_DEV: boolean =

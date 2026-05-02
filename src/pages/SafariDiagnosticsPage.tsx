@@ -8,7 +8,7 @@ import { buildAzanSourceList, TAKBIR_URL } from "@/lib/adhan-settings";
 import { detectBrowser, getIOSVersion, isIOSVersionAtLeast } from "@/lib/browser-detect";
 import { mobileAudioManager } from "@/lib/mobile-audio";
 import { Button } from "@/components/ui/button";
-import { cn, toArabicNumerals } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 type DiagnosticLevel = "info" | "success" | "error";
 

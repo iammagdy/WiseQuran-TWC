@@ -5,7 +5,7 @@ import { Sparkles, Share2, Volume2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
 import { getDailyAyahReference, getDailyAyahCacheKey, type DailyAyahRef } from "@/lib/daily-ayah";
-import { fetchSurahAyahs, type Ayah } from "@/lib/quran-api";
+import { fetchSurahAyahs } from "@/lib/quran-api";
 import { SURAH_META } from "@/data/surah-meta";
 import { toArabicNumerals } from "@/lib/utils";
 import { useLanguage } from "@/contexts/LanguageContext";

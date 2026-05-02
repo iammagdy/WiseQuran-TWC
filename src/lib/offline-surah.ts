@@ -10,8 +10,6 @@ import {
   deleteTafsir,
   saveTafsir,
 } from "./db";
-import { logger } from "./logger";
-
 /**
  * Phase C "Download for offline" orchestrator.
  *

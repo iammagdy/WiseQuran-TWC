@@ -30,7 +30,7 @@ describe("downloadSurahAudio", () => {
       percentUsed: 50,
       hasEnoughSpace: vi.fn().mockReturnValue(true),
     };
-    vi.mocked(db.checkStorageQuota).mockResolvedValue(mockStorageCheck as any);
+    vi.mocked(db.checkStorageQuota).mockResolvedValue(mockStorageCheck as unknown as Awaited<ReturnType<typeof db.checkStorageQuota>>);
 
     vi.mocked(reciters.getReciterAudioUrls).mockResolvedValue([
       "http://example.com/audio1.mp3",
@@ -66,7 +66,7 @@ describe("downloadSurahAudio", () => {
       body: undefined,
       blob: () => Promise.resolve(audioBlob),
       arrayBuffer: () => Promise.resolve(mockBuffer.buffer),
-    } as any);
+    } as unknown as Response);
 
     // Mock saveAudio to throw QuotaExceededError
     const quotaError = new Error("QuotaExceededError");
@@ -74,7 +74,7 @@ describe("downloadSurahAudio", () => {
     vi.mocked(db.saveAudio).mockRejectedValue(quotaError);
 
     // Mock deleteAudio to return a resolved promise since the code chains .catch() on it
-    vi.mocked(db.deleteAudio).mockResolvedValue(undefined as any);
+    vi.mocked(db.deleteAudio).mockResolvedValue(undefined as unknown as Awaited<ReturnType<typeof db.deleteAudio>>);
 
     // 2. Execute & Verify
     await expect(downloadSurahAudio("ar.alafasy", 1)).rejects.toThrow(

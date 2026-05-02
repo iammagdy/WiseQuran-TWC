@@ -19,7 +19,7 @@ import { useDailyReading } from "@/hooks/useDailyReading";
 import { useReadingReminder } from "@/hooks/useReadingReminder";
 import { downloadAllSurahs, fetchSurahList, type SurahMeta } from "@/lib/quran-api";
 import { downloadSurahAudio, formatBytes, verifyAndRepairDownloads } from "@/lib/quran-audio";
-import { RECITERS, DEFAULT_RECITER, getReciterAyahAudioUrl, getReciterAudioUrl } from "@/lib/reciters";
+import { RECITERS, DEFAULT_RECITER, getReciterAudioUrl } from "@/lib/reciters";
 import { TAFSIR_EDITIONS, DEFAULT_TAFSIR } from "@/data/tafsir-editions";
 import { TRANSLATION_EDITIONS, DEFAULT_TRANSLATION } from "@/data/translation-editions";
 import { toast } from "sonner";
@@ -165,7 +165,6 @@ export default function SettingsPage() {
   const { t, language, setLanguage, isRTL } = useLanguage();
   const browserType = detectBrowser();
   const isIOS = browserType === "ios-safari";
-  const installInstructions = getInstallInstructions(browserType, language);
   const navigate = useNavigate();
   const [showChangelog, setShowChangelog] = useState(false);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
@@ -445,9 +444,15 @@ export default function SettingsPage() {
   }, []);
 
   // PWA Install
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  // BeforeInstallPromptEvent isn't in lib.dom.d.ts; mirror only the shape we touch.
+  type BeforeInstallPromptEvent = Event & {
+    prompt: () => Promise<void>;
+    userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
+  };
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isInstalled, setIsInstalled] = useState(false);
-  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone === true;
+  // navigator.standalone is iOS Safari-only.
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
 
   useEffect(() => {
     if (isStandalone) {
@@ -456,7 +461,7 @@ export default function SettingsPage() {
     }
     const handler = (e: Event) => {
       e.preventDefault();
-      setDeferredPrompt(e);
+      setDeferredPrompt(e as BeforeInstallPromptEvent);
     };
     const installedHandler = () => setIsInstalled(true);
     window.addEventListener('beforeinstallprompt', handler);
@@ -705,7 +710,7 @@ export default function SettingsPage() {
           { duration: 5000 }
         );
       }
-    } catch (e) {
+    } catch {
       toast.error(t("settings_toast_verify_failed"));
     } finally {
       setVerifying(false);

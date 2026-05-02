@@ -233,7 +233,7 @@ export async function getDB() {
   return dbPromise;
 }
 
-export async function saveSurah(number: number, ayahs: any[]) {
+export async function saveSurah(number: number, ayahs: unknown[]) {
   const db = await getDB();
   await db.put("surahs", { number, ayahs });
   notifyOfflineChange();

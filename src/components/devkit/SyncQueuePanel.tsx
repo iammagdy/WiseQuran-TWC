@@ -40,7 +40,9 @@ export default function SyncQueuePanel() {
       const db = await getDB();
       await db.clear("syncQueue");
       await load();
-    } catch {}
+    } catch {
+      /* devkit best-effort: clearing IDB store may race with another writer; ignore */
+    }
   };
 
   const exportData = () => {
@@ -60,7 +62,9 @@ export default function SyncQueuePanel() {
       const db = await getDB();
       await db.delete("syncQueue", id);
       await load();
-    } catch {}
+    } catch {
+      /* devkit best-effort: row may have been flushed/removed concurrently; ignore */
+    }
   };
 
   return (

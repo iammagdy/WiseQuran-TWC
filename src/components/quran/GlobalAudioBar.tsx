@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Loader2, Pause, Play, X } from "lucide-react";
 import { useAudioPlayerState, useAudioPlayerTime } from "@/hooks/useAudioPlayer";
 import { getReciterById } from "@/lib/reciters";
-import { toArabicNumerals } from "@/lib/utils";
 import NowPlayingScreen from "./NowPlayingScreen";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { cn } from "@/lib/utils";

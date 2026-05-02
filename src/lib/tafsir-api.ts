@@ -26,7 +26,7 @@ export async function fetchTafsir(
   if (!res.ok) throw new Error("Failed to fetch tafsir");
   const data = await res.json();
 
-  const ayahs: TafsirAyah[] = data.data.ayahs.map((a: any) => ({
+  const ayahs: TafsirAyah[] = (data.data.ayahs as Array<{ numberInSurah: number; text: string }>).map((a) => ({
     numberInSurah: a.numberInSurah,
     text: a.text,
   }));

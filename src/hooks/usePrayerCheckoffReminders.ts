@@ -2,7 +2,6 @@ import { useEffect, useRef } from "react";
 import { calculatePrayerTimes, type PrayerTimes, type CalculationMethod } from "@/lib/prayer-times";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { useLocation } from "@/hooks/useLocation";
-import { useLanguage } from "@/contexts/LanguageContext";
 import { showAppNotification } from "@/lib/notifications";
 import {
   PRAYER_IDS,
