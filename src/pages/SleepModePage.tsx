@@ -125,10 +125,15 @@ export default function SleepModePage() {
   }, []);
 
   useEffect(() => {
+    // React to navigation-state changes so deep-linking into /sleep with
+    // { surahNumber, reciterId } applies the prefs even if the user is
+    // already on this page. `location.state` is per-navigation (stable
+    // reference between renders within the same nav entry), so this
+    // doesn't loop.
     const state = location.state as { surahNumber?: number; reciterId?: string } | null;
     if (state?.surahNumber) setPrefs({ surahNumber: state.surahNumber });
     if (state?.reciterId) setPrefs({ reciterId: state.reciterId });
-  }, []);
+  }, [location.state, setPrefs]);
 
   const downloadedForSelectedReciter = downloadedByReciter.get(prefs.reciterId) ?? new Set<number>();
 

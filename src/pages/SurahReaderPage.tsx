@@ -268,7 +268,11 @@ export default function SurahReaderPage() {
     };
     const raf = requestAnimationFrame(tryScroll);
     return () => cancelAnimationFrame(raf);
-  }, [loading, ayahs, targetAyah]);
+    // surahNumber must be in deps so navigating between surahs (when
+    // the component is reused) re-runs the scroll for the new surah's
+    // target ayah. The `targetAyahHandledRef` guard above keys on
+    // `${surahNumber}:${targetAyah}` so the same ayah isn't re-scrolled.
+  }, [loading, ayahs, targetAyah, surahNumber]);
 
   const setAyahRef = useCallback((el: HTMLDivElement | null, num: number) => {
     if (el) ayahElementsRef.current.set(num, el);
