@@ -96,12 +96,26 @@ function gzippedKb(path) {
 }
 
 function matchBudget(name) {
-  // Vite emits names like `index-DAIkdQ_V.js` or `data-vendor-DvWGIq3I.js`.
-  // The hash always sits in the LAST `-...` segment before `.js`, so strip
-  // only that final segment. A naive `[A-Za-z0-9_-]+` would chew through
-  // legitimate hyphens in chunk names like `data-vendor`.
-  const stem = name.replace(/-[A-Za-z0-9_]+\.js$/, "");
-  return Object.prototype.hasOwnProperty.call(BUDGETS_KB, stem) ? stem : null;
+  // Vite emits names like `index-DAIkdQ_V.js` or
+  // `charts-vendor-Bi-1TRau.js`. Vite hashes are base64url-style and
+  // CAN contain hyphens, so a regex like `/-[A-Za-z0-9_]+\.js$/`
+  // will silently fail to strip the full hash on those filenames
+  // (it'd leave `charts-vendor-Bi`), causing the budget lookup to
+  // miss and the chunk to bypass enforcement.
+  //
+  // Match against known budget keys instead: if the filename starts
+  // with `<key>-` and ends with `.js`, that's the budget that applies.
+  // We pick the LONGEST matching key so that `data-vendor-...` would
+  // correctly bind to `data-vendor`, not the shorter `data` if both
+  // existed.
+  if (!name.endsWith(".js")) return null;
+  let best = null;
+  for (const key of Object.keys(BUDGETS_KB)) {
+    if (name.startsWith(key + "-")) {
+      if (!best || key.length > best.length) best = key;
+    }
+  }
+  return best;
 }
 
 const chunks = listChunks();
