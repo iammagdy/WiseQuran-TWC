@@ -32,9 +32,17 @@ export function DiagnosticsSection() {
     getAudioDebugEntries,
     getAudioDebugEntries,
   );
+  // Subscribe to the enabled flag separately so toggling the console
+  // mirror reliably refreshes the button label even when the entries
+  // buffer didn't change. Booleans compare by value, so React's bailout
+  // only fires on actual transitions.
+  const consoleEnabled = useSyncExternalStore(
+    subscribeAudioDebug,
+    isAudioDebugEnabled,
+    isAudioDebugEnabled,
+  );
   const [open, setOpen] = useState(false);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
-  const consoleEnabled = isAudioDebugEnabled();
 
   const formattedLog = useMemo(() => formatEntriesForCopy(entries), [entries]);
 
