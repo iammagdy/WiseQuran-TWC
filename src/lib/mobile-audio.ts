@@ -15,7 +15,12 @@ function normalizeSource(src: string): string {
   if (typeof window === "undefined") return src;
   try {
     return new URL(src, window.location.origin).toString();
-  } catch {
+  } catch (err) {
+    audioDebugLog(
+      "mobileAudioManager.normalizeSource:invalidUrl",
+      { srcPreview: src.slice(0, 80) },
+      err,
+    );
     return src;
   }
 }
@@ -105,8 +110,12 @@ class MobileAudioManager {
         if (!wasPaused) {
           try {
             audio.currentTime = previousTime;
-          } catch {
-            // Ignore restore failures.
+          } catch (err) {
+            audioDebugLog(
+              "mobileAudioManager.prime:finally:restoreTimeFailed",
+              { channel },
+              err,
+            );
           }
         }
         audioDebugLog("mobileAudioManager.prime:finally:restoreSrc", () => ({
@@ -192,8 +201,12 @@ class MobileAudioManager {
     if (resetTime) {
       try {
         audio.currentTime = 0;
-      } catch {
-        // Ignore currentTime reset failures.
+      } catch (err) {
+        audioDebugLog(
+          "mobileAudioManager.play:resetTimeFailed",
+          { channel },
+          err,
+        );
       }
     }
 
@@ -235,6 +248,11 @@ class MobileAudioManager {
       try {
         return await this.play(channel, source, options);
       } catch (error) {
+        audioDebugLog(
+          "mobileAudioManager.playWithFallback:sourceFailed",
+          { channel, srcPreview: source.slice(0, 60) },
+          error,
+        );
         lastError = error;
       }
     }
@@ -252,8 +270,12 @@ class MobileAudioManager {
     audio.pause();
     try {
       audio.currentTime = 0;
-    } catch {
-      // Ignore reset failures.
+    } catch (err) {
+      audioDebugLog(
+        "mobileAudioManager.stop:resetTimeFailed",
+        { channel },
+        err,
+      );
     }
 
     if (resetSource) {

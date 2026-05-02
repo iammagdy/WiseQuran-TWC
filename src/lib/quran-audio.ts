@@ -118,7 +118,20 @@ export async function fetchAudioFromUrl(
       } catch (err) {
         // On cancel/abort, release the in-flight reader so the
         // underlying connection can shut down cleanly.
-        try { await reader.cancel(); } catch { /* ignore */ }
+        try {
+          await reader.cancel();
+        } catch (cancelErr) {
+          audioDebugLog(
+            "quran-audio.fetchAudioFromUrl:readerCancelFailed",
+            { urlPreview: url.slice(0, 80) },
+            cancelErr,
+          );
+        }
+        audioDebugLog(
+          "quran-audio.fetchAudioFromUrl:streamError",
+          { urlPreview: url.slice(0, 80) },
+          err,
+        );
         throw err;
       }
       return blob;
@@ -184,7 +197,13 @@ export async function downloadSurahAudio(
 
   for (let i = 0; i < urls.length; i++) {
     if (signal?.aborted) {
-      await deleteAudio(reciterId, surahNumber).catch(() => {});
+      await deleteAudio(reciterId, surahNumber).catch((err) =>
+        audioDebugLog(
+          "quran-audio.downloadSurahAudio:deleteOnAbortFailed",
+          { reciterId, surahNumber },
+          err,
+        ),
+      );
       throw new DOMException("Aborted", "AbortError");
     }
     try {
@@ -201,7 +220,19 @@ export async function downloadSurahAudio(
 
       if (blobSize < MIN_AUDIO_SIZE) {
         logger.warn(`[audio-dl] source ${i + 1} too small (${blobSize}B), skipping`);
-        await deleteAudio(reciterId, surahNumber).catch(() => {});
+        audioDebugLog("quran-audio.downloadSurahAudio:tooSmall", {
+          reciterId,
+          surahNumber,
+          blobSize,
+          sourceIndex: i,
+        });
+        await deleteAudio(reciterId, surahNumber).catch((err) =>
+          audioDebugLog(
+            "quran-audio.downloadSurahAudio:deleteOnTooSmallFailed",
+            { reciterId, surahNumber },
+            err,
+          ),
+        );
         continue;
       }
 
@@ -226,13 +257,30 @@ export async function downloadSurahAudio(
       const err = e instanceof Error ? e : new Error(String(e));
       // Propagate aborts immediately — don't try the next mirror.
       if (err.name === "AbortError") {
-        await deleteAudio(reciterId, surahNumber).catch(() => {});
+        await deleteAudio(reciterId, surahNumber).catch((delErr) =>
+          audioDebugLog(
+            "quran-audio.downloadSurahAudio:deleteOnAbortFailed",
+            { reciterId, surahNumber },
+            delErr,
+          ),
+        );
         throw err;
       }
       lastError = err;
       logger.warn(`[audio-dl] source ${i + 1} failed:`, lastError.message);
+      audioDebugLog(
+        "quran-audio.downloadSurahAudio:sourceFailed",
+        { reciterId, surahNumber, sourceIndex: i },
+        err,
+      );
       onProgress?.(0);
-      await deleteAudio(reciterId, surahNumber).catch(() => {});
+      await deleteAudio(reciterId, surahNumber).catch((delErr) =>
+        audioDebugLog(
+          "quran-audio.downloadSurahAudio:deleteOnSourceFailFailed",
+          { reciterId, surahNumber },
+          delErr,
+        ),
+      );
     }
   }
 
@@ -317,7 +365,20 @@ async function streamAudioToIdb(
           if (bytesSinceFlush >= STREAM_FLUSH_BYTES) await flush();
         }
       } catch (err) {
-        try { await reader.cancel(); } catch { /* ignore */ }
+        try {
+          await reader.cancel();
+        } catch (cancelErr) {
+          audioDebugLog(
+            "quran-audio.streamAudioToIdb:readerCancelFailed",
+            { reciterId, surahNumber },
+            cancelErr,
+          );
+        }
+        audioDebugLog(
+          "quran-audio.streamAudioToIdb:streamError",
+          { reciterId, surahNumber },
+          err,
+        );
         throw err;
       }
     } else {
@@ -437,8 +498,19 @@ export async function verifyAndRepairDownloads(
       logger.debug(`[verify] surah ${audio.surahNumber}: ✓ valid (${formatBytes(size)})`);
     } catch (e) {
       console.error(`[verify] surah ${audio.surahNumber}: error during verification`, e);
+      audioDebugLog(
+        "quran-audio.verifyAndRepairDownloads:verifyFailed",
+        { reciterId, surahNumber: audio.surahNumber },
+        e,
+      );
       corrupted.push(audio.surahNumber);
-      await deleteAudio(reciterId, audio.surahNumber).catch(() => {});
+      await deleteAudio(reciterId, audio.surahNumber).catch((delErr) =>
+        audioDebugLog(
+          "quran-audio.verifyAndRepairDownloads:deleteFailed",
+          { reciterId, surahNumber: audio.surahNumber },
+          delErr,
+        ),
+      );
     }
   }
 

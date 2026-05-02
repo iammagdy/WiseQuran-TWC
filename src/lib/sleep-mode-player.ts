@@ -93,8 +93,8 @@ function persistPrefs(prefs: SleepModePrefs) {
   if (typeof window !== "undefined") {
     try {
       window.dispatchEvent(new CustomEvent(SLEEP_PREFS_CHANGED_EVENT, { detail: prefs }));
-    } catch {
-      /* ignore — best-effort notification */
+    } catch (err) {
+      audioDebugLog("sleepModePlayer.persistPrefs:dispatchFailed", undefined, err);
     }
   }
 }
@@ -237,8 +237,8 @@ function createSleepModePlayer() {
         ],
       });
       navigator.mediaSession.playbackState = playing ? "playing" : "paused";
-    } catch {
-      /* ignore — older browsers don't support every artwork field */
+    } catch (err) {
+      audioDebugLog("sleepModePlayer.updateMediaSession:failed", { playing }, err);
     }
   }
 
@@ -253,8 +253,8 @@ function createSleepModePlayer() {
       navigator.mediaSession.setActionHandler("seekto", null);
       navigator.mediaSession.setActionHandler("seekforward", null);
       navigator.mediaSession.setActionHandler("seekbackward", null);
-    } catch {
-      /* ignore */
+    } catch (err) {
+      audioDebugLog("sleepModePlayer.clearMediaSession:failed", undefined, err);
     }
     clearMediaPositionState();
   }
@@ -293,8 +293,12 @@ function createSleepModePlayer() {
         position: clampedElapsed,
         playbackRate: 1,
       });
-    } catch {
-      /* ignore — Safari throws on invalid values; bail rather than crash playback */
+    } catch (err) {
+      audioDebugLog(
+        "sleepModePlayer.updateMediaPositionState:failed",
+        { totalSecs, elapsedSecs },
+        err,
+      );
     }
   }
 
@@ -303,8 +307,8 @@ function createSleepModePlayer() {
     if (typeof navigator.mediaSession.setPositionState !== "function") return;
     try {
       navigator.mediaSession.setPositionState();
-    } catch {
-      /* ignore */
+    } catch (err) {
+      audioDebugLog("sleepModePlayer.clearMediaPositionState:failed", undefined, err);
     }
   }
 
@@ -777,8 +781,8 @@ function createSleepModePlayer() {
             const offset = details.seekOffset ?? 15;
             adjustTimer(snapshot.remainingSeconds + offset);
           });
-        } catch {
-          /* ignore */
+        } catch (err) {
+          audioDebugLog("sleepModePlayer.setActionHandlers:failed", undefined, err);
         }
       }
 
@@ -786,7 +790,17 @@ function createSleepModePlayer() {
       // next Sleep session for this reciter+surah will work offline. No-op
       // if it's already cached (we'd be on the blob: URL branch above).
       if (!source.cached && navigator.onLine) {
-        cachePlayingAudio(currentPrefs.reciterId, currentPrefs.surahNumber, source.url).catch(() => {});
+        cachePlayingAudio(currentPrefs.reciterId, currentPrefs.surahNumber, source.url).catch(
+          (err) =>
+            audioDebugLog(
+              "sleepModePlayer.cachePlayingAudio:error",
+              {
+                reciterId: currentPrefs.reciterId,
+                surahNumber: currentPrefs.surahNumber,
+              },
+              err,
+            ),
+        );
       }
 
       // Fire-and-forget — see startSession() for why we don't await.
@@ -824,8 +838,8 @@ function createSleepModePlayer() {
     if (typeof navigator !== "undefined" && "mediaSession" in navigator) {
       try {
         navigator.mediaSession.playbackState = "paused";
-      } catch {
-        /* ignore */
+      } catch (err) {
+        audioDebugLog("sleepModePlayer.pause:playbackStateFailed", undefined, err);
       }
     }
     // Freeze the lock-screen progress bar at the paused position
@@ -850,8 +864,8 @@ function createSleepModePlayer() {
     if (typeof navigator !== "undefined" && "mediaSession" in navigator) {
       try {
         navigator.mediaSession.playbackState = "playing";
-      } catch {
-        /* ignore */
+      } catch (err) {
+        audioDebugLog("sleepModePlayer.resume:playbackStateFailed", undefined, err);
       }
     }
 

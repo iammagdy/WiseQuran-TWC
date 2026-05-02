@@ -3,25 +3,43 @@ import { test, expect } from "@playwright/test";
 /**
  * Sleep Mode happy path.
  *
- * Asserts:
- *  - /sleep route renders (chunk loads, AppShell mounts)
- *  - Tapping Play either flips the singleton into a loading or playing
- *    state, OR falls back to the "offline / not cached" state
- *  - The diagnostics ring buffer captures at least one event from the
- *    audio stack — proving the always-on capture wiring made it into
- *    production code paths.
+ * The single most important behavioural assertion in this whole task is
+ * "tap Play, audio actually starts" — the symptom users report is "I
+ * tapped Play and nothing happened". So this spec installs a spy on
+ * `HTMLMediaElement.prototype.play` BEFORE the page loads, drives the
+ * UI, and then asserts at least one `play()` invocation reached the
+ * underlying media element. We also accept the "primed silent unlock"
+ * call — proving the iOS audio-session bootstrap fired — as a positive
+ * signal even if the recitation source itself never resolved.
  *
- * We accept loading|playing|offline because real CDN reachability from
- * the test runner is non-deterministic; what we do NOT accept is
- * "tapped Play, nothing happened" — the symptom this whole task fights.
+ * The CDN audio responses are stubbed with an inline silent MP3 so we
+ * never hit the real network from CI, and so the play() promise either
+ * resolves cleanly or rejects with a deterministic decode/abort error.
  */
+
+declare global {
+  interface Window {
+    __wisePlayCalls?: Array<{ src: string; ts: number }>;
+  }
+}
 
 test.describe("Sleep Mode", () => {
   test.beforeEach(async ({ page }) => {
-    // Stub fetches to recitation CDNs so the test doesn't depend on
-    // the public network. We resolve to a tiny silent MP3 so the audio
-    // element transitions into 'playing' deterministically.
-    await page.route(/mp3quran\.net|quranicaudio\.com|everyayah\.com/, async (route) => {
+    // Spy installed pre-navigation so the initial route + lazy chunks
+    // never see an unpatched HTMLMediaElement.
+    await page.addInitScript(() => {
+      window.__wisePlayCalls = [];
+      const origPlay = HTMLMediaElement.prototype.play;
+      HTMLMediaElement.prototype.play = function patchedPlay(this: HTMLMediaElement) {
+        window.__wisePlayCalls!.push({
+          src: this.currentSrc || this.src || "",
+          ts: Date.now(),
+        });
+        return origPlay.apply(this);
+      };
+    });
+
+    await page.route(/mp3quran\.net|quranicaudio\.com|everyayah\.com|qurancentral\.com/, async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "audio/mpeg",
@@ -30,37 +48,52 @@ test.describe("Sleep Mode", () => {
     });
   });
 
-  test("renders the page and reacts to Play", async ({ page }) => {
-    await page.goto("/sleep");
+  test("tapping Play actually invokes audio.play()", async ({ page }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (e) => errors.push(e.message));
 
-    // Wait for the page to render; the route can lazy-load so we wait
-    // for any visible Sleep Mode title or play affordance.
+    await page.goto("/sleep");
     await expect(page.locator("body")).toBeVisible();
+
+    // Wait for the page interactive state. The Sleep route lazy-loads
+    // its own chunk, so we let React mount before hunting for the
+    // play affordance.
+    await page.waitForLoadState("domcontentloaded");
+    await page.waitForTimeout(750);
 
     const playButton = page
       .getByRole("button", { name: /play|تشغيل/i })
       .first();
 
     if (await playButton.count()) {
-      await playButton.click({ trial: false }).catch(() => {
-        // The first click may be intercepted by an onboarding affordance
-        // (e.g. select reciter). That's fine — the assertion below still
-        // verifies the app didn't crash.
+      await playButton.click({ force: true }).catch(() => {
+        // Swallow click failures (e.g. onboarding intercept). The
+        // audio.play() spy below is the real assertion.
       });
     }
 
-    // No console-level error budget violation. We allow audio decode
-    // warnings (real CDNs may rate-limit during test) but not unhandled
-    // exceptions.
-    const errors: string[] = [];
-    page.on("pageerror", (e) => errors.push(e.message));
-    await page.waitForTimeout(1500);
+    // Give the audio bootstrap (prime → resolveAudioSource → play) a
+    // generous window to fire its first .play() call.
+    await page.waitForFunction(
+      () => (window.__wisePlayCalls?.length ?? 0) > 0,
+      undefined,
+      { timeout: 8000 },
+    ).catch(() => {});
+
+    const playCalls = await page.evaluate(() => window.__wisePlayCalls ?? []);
+
+    // The hard assertion: the audio stack reached HTMLMediaElement.play()
+    // at least once. This is what fails when "tap Play, nothing happens"
+    // regresses.
+    expect(playCalls.length, `audio.play() was never invoked. UA pageerrors: ${errors.join(" | ")}`)
+      .toBeGreaterThan(0);
+
+    // No uncaught page exceptions.
     expect(errors, errors.join("\n")).toEqual([]);
   });
 });
 
-// 1-frame silent MP3 — exactly the same constant the mobile audio
-// manager primes channels with. Inline so this spec has zero filesystem
-// fixture dependencies.
+// 1-frame silent MP3 — same constant the audio manager primes channels
+// with. Inline so this spec has zero filesystem fixture dependencies.
 const SILENT_MP3_BASE64 =
   "SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjYwLjE2LjEwMAAAAAAAAAAAAAAA";

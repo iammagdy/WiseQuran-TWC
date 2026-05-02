@@ -75,15 +75,23 @@ export default defineConfig(({ mode }) => ({
         manualChunks(id) {
           if (!id.includes("node_modules")) return;
 
-          // React core + router. Pulled out of the generic vendor chunk
-          // so the home critical path doesn't ship the rest of the
-          // ecosystem just to render the splash + tab bar. Stable
-          // chunk name → SW precache manifest stays deterministic.
+          // React core only (NOT react-router). Pulled out of the
+          // generic vendor chunk so the home critical path doesn't
+          // ship the rest of the ecosystem just to render the splash
+          // + tab bar. Stable chunk name → SW precache manifest stays
+          // deterministic.
+          //
+          // We deliberately leave react-router in `vendor`: it
+          // depends on `@remix-run/router`, which itself doesn't get
+          // matched by the patterns above. Pulling react-router into
+          // react-vendor would create the bundling cycle
+          //   vendor → react-vendor (vendor libs import React)
+          //   react-vendor → vendor (@remix-run/router lives there)
+          // and Rollup logs that as a "Circular chunk" warning.
+          // Keeping react/react-dom/scheduler isolated (none of which
+          // import anything else) breaks the cycle.
           if (
-            id.includes("/react/") ||
-            id.includes("/react-dom/") ||
-            id.includes("/react-router") ||
-            id.includes("/scheduler/")
+            /[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/.test(id)
           ) {
             return "react-vendor";
           }

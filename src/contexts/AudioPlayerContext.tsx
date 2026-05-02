@@ -113,10 +113,22 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       // reload from the remembered URL before asking the manager to play.
       const srcLost = !audio || !audio.src || audio.src === "" || audio.src === window.location.href;
       if (srcLost && savedUrl) {
-        mobileAudioManager.play("quran", savedUrl, { forceLoad: true }).catch(() => {});
+        mobileAudioManager.play("quran", savedUrl, { forceLoad: true }).catch((err) =>
+          audioDebugLog(
+            "AudioPlayerContext.mediaSession.handlePlay:reloadFailed",
+            { urlPreview: savedUrl.slice(0, 60) },
+            err,
+          ),
+        );
         return;
       }
-      mobileAudioManager.play("quran").catch(() => {});
+      mobileAudioManager.play("quran").catch((err) =>
+        audioDebugLog(
+          "AudioPlayerContext.mediaSession.handlePlay:resumeFailed",
+          undefined,
+          err,
+        ),
+      );
     };
     const handlePause = () => { audioRef.current?.pause(); };
 
@@ -185,7 +197,13 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
         const nextUrl = fallbacks[nextIndex];
         fallbackIndexRef.current = nextIndex + 1;
         currentUrlRef.current = nextUrl;
-        mobileAudioManager.play("quran", nextUrl, { forceLoad: true }).catch(() => {});
+        mobileAudioManager.play("quran", nextUrl, { forceLoad: true }).catch((err) =>
+          audioDebugLog(
+            "AudioPlayerContext.fallback:playFailed",
+            { fallbackIndex: nextIndex, urlPreview: nextUrl.slice(0, 60) },
+            err,
+          ),
+        );
         return;
       }
 
@@ -211,7 +229,13 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       surahNumberRef.current === surahNumber &&
       activeReciterForRetryRef.current === currentReciterId
     ) {
-      audioRef.current.play().catch(() => {});
+      audioRef.current.play().catch((err) =>
+        audioDebugLog(
+          "AudioPlayerContext.play:resumeRejected",
+          { surahNumber, reciterId: currentReciterId },
+          err,
+        ),
+      );
       return;
     }
 
