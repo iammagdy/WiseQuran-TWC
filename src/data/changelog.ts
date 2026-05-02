@@ -1,4 +1,4 @@
-export const APP_VERSION = "3.9.1";
+export const APP_VERSION = "3.9.6";
 
 export interface ChangelogCategory {
   features?: string[];
@@ -14,6 +14,28 @@ export interface ChangelogEntry {
 }
 
 export const changelog: ChangelogEntry[] = [
+  {
+    version: "3.9.6",
+    date: "2026-05-02",
+    ar: {
+      improvements: [
+        "تحسينات أداء كبيرة: تقسيم حزم المكتبات حسب الاستخدام، وتأجيل تحميل الرسوم البيانية إلى صفحة الإحصائيات فقط، مما يجعل فتح التطبيق أسرع.",
+        "لوحة تشخيص جديدة داخل الإعدادات لمساعدتنا في تتبّع أي مشكلة في تشغيل الصوت بدقة.",
+      ],
+      fixes: [
+        "ثبات أعلى لمشغّل الصوت في وضع النوم والقارئ، مع تسجيل تفصيلي لأي خطأ يحدث في الخلفية.",
+      ],
+    },
+    en: {
+      improvements: [
+        "Major performance improvements: vendor code is now split by domain and chart code is loaded only on the Stats page, making app startup noticeably faster.",
+        "New Diagnostics panel in Settings to help us trace any audio playback issue precisely.",
+      ],
+      fixes: [
+        "Higher stability for the audio player in Sleep Mode and the Quran reader, with detailed logging of any background errors.",
+      ],
+    },
+  },
   {
     version: "3.9.1",
     date: "2026-04-27",
