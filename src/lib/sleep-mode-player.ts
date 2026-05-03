@@ -825,26 +825,50 @@ function createSleepModePlayer() {
       // inside the gesture above; we only need to await its eventual
       // settlement here. On the slow path we issue it now.
       audioDebugLog("sleepModePlayer.play:invokeMobilePlay", { fastPath: Boolean(fastPlayPromise) });
-      // v3.9.8: hard timeout (5s) around the play promise. iOS
+      // v3.9.8: state-aware timeout around the play promise. iOS
       // standalone PWAs occasionally return a play() promise that
       // never settles — the previous code awaited it forever and the
-      // UI was stuck on isLoading=true with no audible output. The
-      // timeout guarantees the catch below runs and surfaces hasError
-      // so the user sees a real failure state instead of silence.
+      // UI hung on isLoading=true with no audible output. The hard
+      // ceiling is 8 seconds, but we deliberately DO NOT fail if the
+      // element shows real audio progress (currentTime > 0 or not
+      // paused) by the deadline — that's a slow CDN, not the iOS
+      // hang. This avoids false-positives on legitimate slow starts
+      // while still rescuing the genuine never-settling case.
       const playPromise = fastPlayPromise ?? mobileAudioManager.play(SLEEP_CHANNEL, source.url, {
         forceLoad: false,
         noRetry: true,
         volume: currentPrefs.quranVolume / 100,
       });
-      await Promise.race([
-        playPromise,
-        new Promise((_, reject) =>
-          setTimeout(
-            () => reject(new Error("sleepModePlayer: audio.play() did not settle within 5s")),
-            5000,
-          ),
-        ),
-      ]);
+      await new Promise<void>((resolve, reject) => {
+        let settled = false;
+        const finish = (err?: unknown) => {
+          if (settled) return;
+          settled = true;
+          if (err) reject(err);
+          else resolve();
+        };
+        playPromise.then(() => finish(), (err) => finish(err));
+        // onplaying fires as soon as audio starts producing sound —
+        // that's the strongest possible "really playing" signal,
+        // independent of whether the play() promise ever resolves.
+        localAudio.addEventListener("playing", () => finish(), { once: true });
+        setTimeout(() => {
+          if (settled) return;
+          // If the element is making audible progress, give it up to
+          // the page (don't synthesize hasError). The timeout was
+          // there to rescue the never-settling-promise case, not to
+          // override real-but-slow playback.
+          if (localAudio.currentTime > 0 || !localAudio.paused) {
+            audioDebugLog("sleepModePlayer.play:timeoutWithProgress", () => ({
+              currentTime: localAudio.currentTime,
+              paused: localAudio.paused,
+            }));
+            finish();
+            return;
+          }
+          finish(new Error("sleepModePlayer: no audio progress within 8s"));
+        }, 8000);
+      });
       audioDebugLog("sleepModePlayer.play:mobilePlayResolved");
       if (isStale()) {
         audioDebugLog("sleepModePlayer.play:stale", { stage: "afterMobilePlay", myToken, current: playToken });
@@ -1152,4 +1176,14 @@ export const sleepModePlayer = createSleepModePlayer();
 // the eventual real .play() with no audible output. Module load
 // happens as soon as the lazy chunk is requested by the route, which
 // is meaningfully earlier than the page's first useEffect.
-sleepModePlayer.ensurePreloaded();
+//
+// URL-gated so the global App-level prefetchAllRoutes() (which warms
+// SleepModePage in the background regardless of route) doesn't trigger
+// a network fetch + blob allocation app-wide. We only preload when the
+// user is actually on / heading to the Sleep page.
+if (
+  typeof window !== "undefined" &&
+  /\/sleep(\/|$|\?)/.test(window.location.pathname + window.location.search)
+) {
+  sleepModePlayer.ensurePreloaded();
+}
