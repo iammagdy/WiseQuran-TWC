@@ -164,6 +164,79 @@ function createSleepModePlayer() {
   // can revoke it on stop / track change. Network URLs are stored as null
   // (nothing to revoke).
   let blobUrl: string | null = null;
+  // Pre-resolved audio source for the *currently selected* (reciter, surah).
+  // Eagerly populated whenever those prefs change so play() can fire the
+  // real audio element synchronously inside the user-gesture tick on iOS
+  // — without this, the awaits between gesture and audio.play() (prime +
+  // IDB lookup) cause iOS standalone PWAs to refuse playback entirely
+  // ("press play, hear silence"). When unused/superseded we revoke any
+  // attached object URL so we don't leak IDB blob references.
+  let preloadedSource: { key: string; url: string; cached: boolean } | null = null;
+  // Monotonically increasing token assigned to each preloadAudioSource()
+  // call. The async resolver compares its captured token against this
+  // global at completion: any older in-flight resolve becomes stale and
+  // must drop its result rather than overwrite a newer (or already
+  // committed) preloadedSource. Without this, two preloads racing for
+  // the same key would leak the older blob URL when the slower one
+  // overwrote `preloadedSource` in place.
+  let preloadToken = 0;
+
+  function sourceKey(reciterId: string, surahNumber: number) {
+    return `${reciterId}:${surahNumber}`;
+  }
+
+  function discardPreloaded() {
+    if (preloadedSource?.cached) {
+      URL.revokeObjectURL(preloadedSource.url);
+    }
+    preloadedSource = null;
+    // Invalidate any in-flight preload too — without this, a resolve
+    // that started before discardPreloaded() could land afterwards and
+    // re-populate preloadedSource against the caller's intent (e.g. a
+    // stopAll() racing with an in-progress preload).
+    preloadToken += 1;
+  }
+
+  function preloadAudioSource(targetPrefs: SleepModePrefs) {
+    const key = sourceKey(targetPrefs.reciterId, targetPrefs.surahNumber);
+    // Fast-exit if we already have a preload for this exact key — no
+    // need to spawn a duplicate resolver (and risk leaking the old URL
+    // when the new one lands).
+    if (preloadedSource?.key === key) return;
+    // A preload for a different key is in flight or sitting cached —
+    // drop it now so we never end up with two resolved sources.
+    discardPreloaded();
+    const myToken = ++preloadToken;
+    void (async () => {
+      try {
+        const src = await resolveAudioSource(targetPrefs.reciterId, targetPrefs.surahNumber);
+        if (!src) return;
+        // Stale: a newer preload (or stopAll-driven discard) has run
+        // since we started. Drop our result rather than clobber the
+        // current state and leak the newer blob URL.
+        if (myToken !== preloadToken) {
+          if (src.cached) URL.revokeObjectURL(src.url);
+          return;
+        }
+        // The user could have flipped to a different reciter/surah while
+        // we were resolving; if so, drop this result rather than leak.
+        const currentKey = sourceKey(snapshot.prefs.reciterId, snapshot.prefs.surahNumber);
+        if (currentKey !== key) {
+          if (src.cached) URL.revokeObjectURL(src.url);
+          return;
+        }
+        // Defensive: if somehow a preloadedSource was committed under
+        // the same key while we were in flight (e.g. play() ran twice),
+        // revoke that prior URL before overwriting so it can't leak.
+        if (preloadedSource?.cached) {
+          URL.revokeObjectURL(preloadedSource.url);
+        }
+        preloadedSource = { key, ...src };
+      } catch {
+        /* ignore — play() falls back to the slow path */
+      }
+    })();
+  }
 
   // Auth context (user id + device id) used to attribute the supabase
   // session insert. The hook keeps this in sync from React via
@@ -349,6 +422,9 @@ function createSleepModePlayer() {
       mobileAudioManager.stop(SLEEP_CHANNEL, true);
     }
     cleanupBlobUrl();
+    // Drop any pre-resolved source — the next play() will preload again
+    // for the active prefs.
+    discardPreloaded();
     clearMediaSession();
     audio = null;
     hasStarted = false;
@@ -589,6 +665,20 @@ function createSleepModePlayer() {
       visibility:
         typeof document !== "undefined" ? document.visibilityState : "unknown",
     }));
+    const currentPrefs = overridePrefs ?? snapshot.prefs;
+    const requestedKey = sourceKey(currentPrefs.reciterId, currentPrefs.surahNumber);
+
+    // Claim any matching preloaded source BEFORE stopAll() runs —
+    // stopAll() calls discardPreloaded() which would revoke the very
+    // URL we want the fast path to use. By moving ownership into a
+    // local here we both prevent the discard and keep the fast-path
+    // .play() call inside the user-gesture tick (no awaits in between).
+    let claimedSource: { url: string; cached: boolean } | null = null;
+    if (preloadedSource && preloadedSource.key === requestedKey) {
+      claimedSource = { url: preloadedSource.url, cached: preloadedSource.cached };
+      preloadedSource = null;
+    }
+
     // stopAll() bumps playToken. Capture the new token AFTER, so this
     // play() invocation has its own identity for staleness checks below.
     stopAll();
@@ -605,8 +695,6 @@ function createSleepModePlayer() {
     // handler.
     configurePlaybackAudioSession();
 
-    const currentPrefs = overridePrefs ?? snapshot.prefs;
-
     // === iOS-safe audio bring-up ===
     // Grab the shared, properly-configured audio element for the "sleep" channel
     // (playsInline, webkit-playsinline, crossOrigin="anonymous", preload="auto"
@@ -620,45 +708,74 @@ function createSleepModePlayer() {
     audio = localAudio;
     hasStarted = true;
 
-    const primePromise = mobileAudioManager.prime(SLEEP_CHANNEL);
+    // Fast path: if we claimed a pre-resolved source above, set src +
+    // call audio.play() *inside* the user-gesture tick — no awaits
+    // between the click handler and the real .play() call. This is
+    // what unblocks iOS standalone PWAs: the previous flow burned the
+    // gesture on a silent-MP3 prime() and an async IDB lookup, after
+    // which iOS would refuse the real play() and the user heard
+    // nothing. Skipping prime() entirely is intentional — calling
+    // .play() on a real source within the gesture is itself what
+    // activates the element on iOS.
+    let source: { url: string; cached: boolean } | null = claimedSource;
+    let fastPlayPromise: Promise<HTMLAudioElement> | null = null;
+    if (source) {
+      audioDebugLog("sleepModePlayer.play:fastPath", { cached: source.cached });
+      if (source.cached) blobUrl = source.url;
+      fastPlayPromise = mobileAudioManager.play(SLEEP_CHANNEL, source.url, {
+        forceLoad: true,
+        volume: currentPrefs.quranVolume / 100,
+      });
+    }
 
     try {
-      // These can run after the gesture; the element is already activated.
-      await primePromise;
-      if (isStale()) {
-        audioDebugLog("sleepModePlayer.play:stale", { stage: "afterPrime", myToken, current: playToken });
-        return;
-      }
-
-      // Resolve the audio source: if the surah is downloaded for this
-      // reciter, this returns a blob: URL backed by IndexedDB and Sleep
-      // Mode plays fully offline. Otherwise it returns the network URL
-      // (when online) or null (when offline AND uncached).
-      audioDebugLog("sleepModePlayer.play:resolveAudioSource:start");
-      const source = await resolveAudioSource(currentPrefs.reciterId, currentPrefs.surahNumber);
-      audioDebugLog("sleepModePlayer.play:resolveAudioSource:result", () => ({
-        hasSource: Boolean(source),
-        cached: source?.cached,
-        srcPreview: source ? source.url.slice(0, 60) : "",
-      }));
-      if (isStale()) {
-        audioDebugLog("sleepModePlayer.play:stale", { stage: "afterResolve", myToken, current: playToken });
-        // We were superseded while resolving; revoke any blob URL we
-        // were about to use so it doesn't leak.
-        if (source?.cached) URL.revokeObjectURL(source.url);
-        return;
-      }
       if (!source) {
-        audioDebugLog("sleepModePlayer.play:offlineUncached");
-        // Offline and not cached. Surface a structured empty-state to
-        // the page rather than a generic playback failure.
-        setSnapshot({ isOfflineUncached: true });
-        stopAll();
-        return;
-      }
-      if (source.cached) {
-        // Track for revocation on stop / next track.
-        blobUrl = source.url;
+        // Slow path: source wasn't preloaded. The preload normally
+        // lands well before the first tap (it kicks off on hook mount
+        // and on every reciter/surah pref change), so this branch is
+        // primarily a safety net for unusual race conditions (e.g.
+        // play() called immediately after a fresh prefs change). We
+        // still run the original prime + resolve flow so playback can
+        // recover, but iOS standalone PWAs may show a brief delay here.
+        audioDebugLog("sleepModePlayer.play:slowPath");
+        const primePromise = mobileAudioManager.prime(SLEEP_CHANNEL);
+        await primePromise;
+        if (isStale()) {
+          audioDebugLog("sleepModePlayer.play:stale", { stage: "afterPrime", myToken, current: playToken });
+          return;
+        }
+
+        // Resolve the audio source: if the surah is downloaded for this
+        // reciter, this returns a blob: URL backed by IndexedDB and Sleep
+        // Mode plays fully offline. Otherwise it returns the network URL
+        // (when online) or null (when offline AND uncached).
+        audioDebugLog("sleepModePlayer.play:resolveAudioSource:start");
+        const resolved = await resolveAudioSource(currentPrefs.reciterId, currentPrefs.surahNumber);
+        audioDebugLog("sleepModePlayer.play:resolveAudioSource:result", () => ({
+          hasSource: Boolean(resolved),
+          cached: resolved?.cached,
+          srcPreview: resolved ? resolved.url.slice(0, 60) : "",
+        }));
+        if (isStale()) {
+          audioDebugLog("sleepModePlayer.play:stale", { stage: "afterResolve", myToken, current: playToken });
+          // We were superseded while resolving; revoke any blob URL we
+          // were about to use so it doesn't leak.
+          if (resolved?.cached) URL.revokeObjectURL(resolved.url);
+          return;
+        }
+        if (!resolved) {
+          audioDebugLog("sleepModePlayer.play:offlineUncached");
+          // Offline and not cached. Surface a structured empty-state to
+          // the page rather than a generic playback failure.
+          setSnapshot({ isOfflineUncached: true });
+          stopAll();
+          return;
+        }
+        source = resolved;
+        if (resolved.cached) {
+          // Track for revocation on stop / next track.
+          blobUrl = resolved.url;
+        }
       }
 
       // Re-attach fresh listeners after prime (prime restores src, but we want
@@ -690,15 +807,18 @@ function createSleepModePlayer() {
       const totalSecs = currentPrefs.timerMinutes * 60;
       setSnapshot({ remainingSeconds: totalSecs });
 
-      // mobileAudioManager.play sets the src, runs audio.load(), and calls
-      // .play() — with a single retry-after-load fallback if the first call
-      // is rejected (which iOS occasionally does on cold start). Works
-      // identically for blob: and https: URLs on iOS Safari / standalone.
-      audioDebugLog("sleepModePlayer.play:invokeMobilePlay");
-      await mobileAudioManager.play(SLEEP_CHANNEL, source.url, {
-        forceLoad: true,
-        volume: currentPrefs.quranVolume / 100,
-      });
+      // On the fast path the .play() call already fired synchronously
+      // inside the gesture above; we only need to await its eventual
+      // settlement here. On the slow path we issue it now.
+      audioDebugLog("sleepModePlayer.play:invokeMobilePlay", { fastPath: Boolean(fastPlayPromise) });
+      if (fastPlayPromise) {
+        await fastPlayPromise;
+      } else {
+        await mobileAudioManager.play(SLEEP_CHANNEL, source.url, {
+          forceLoad: true,
+          volume: currentPrefs.quranVolume / 100,
+        });
+      }
       audioDebugLog("sleepModePlayer.play:mobilePlayResolved");
       if (isStale()) {
         audioDebugLog("sleepModePlayer.play:stale", { stage: "afterMobilePlay", myToken, current: playToken });
@@ -941,6 +1061,12 @@ function createSleepModePlayer() {
       audio.volume = snapshot.prefs.quranVolume / 100;
     }
 
+    // Pre-resolve the audio source for the new (reciter, surah) so the
+    // next play() can fire .play() inside the user-gesture tick on iOS.
+    if (updates.reciterId !== undefined || updates.surahNumber !== undefined) {
+      preloadAudioSource(snapshot.prefs);
+    }
+
     // Restart the active session if the surah or reciter changed mid-play
     // — preserves the previous behavior where switching tracks while
     // playing immediately switches to the new track.
@@ -951,6 +1077,13 @@ function createSleepModePlayer() {
     ) {
       void play(snapshot.prefs);
     }
+  }
+
+  // Public hook entry point — called from useSleepModePlayer on mount so
+  // the preload kicks off as soon as the user lands on the Sleep page,
+  // without waiting for them to touch a setting first.
+  function ensurePreloaded() {
+    preloadAudioSource(snapshot.prefs);
   }
 
   function setAuthContext(userId: string | null, deviceId: string | null) {
@@ -978,6 +1111,7 @@ function createSleepModePlayer() {
     stop,
     setPrefs,
     setAuthContext,
+    ensurePreloaded,
   };
 }
 

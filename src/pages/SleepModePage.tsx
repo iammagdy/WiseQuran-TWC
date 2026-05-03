@@ -235,6 +235,23 @@ export default function SleepModePage() {
 
   const progressPct = audioDuration > 0 ? (audioCurrentTime / audioDuration) * 100 : 0;
 
+  // Responsive ring size — fills the available vertical space on tall
+  // iPhone screens without crowding the controls / surah label below.
+  // Clamped so it never goes smaller than ~260px on narrow phones nor
+  // larger than ~360px on iPads.
+  const [timerSize, setTimerSize] = useState(280);
+  useEffect(() => {
+    const compute = () => {
+      if (typeof window === "undefined") return;
+      const byWidth = window.innerWidth * 0.78;
+      const byHeight = window.innerHeight * 0.46;
+      setTimerSize(Math.round(Math.max(260, Math.min(byWidth, byHeight, 360))));
+    };
+    compute();
+    window.addEventListener("resize", compute);
+    return () => window.removeEventListener("resize", compute);
+  }, []);
+
   return (
     <div
       className="fixed inset-0 overflow-hidden flex flex-col"
@@ -253,23 +270,34 @@ export default function SleepModePage() {
           </div>
           <button
             onClick={() => { stop(); navigate(-1); }}
+            aria-label={language === "ar" ? "الخروج من وضع النوم" : "Exit sleep mode"}
             className="p-2 rounded-full bg-white/5 hover:bg-white/10 transition-colors"
           >
-            <X className="h-4 w-4 text-white/60" />
+            <X className="h-4 w-4 text-white/60" aria-hidden="true" />
           </button>
         </div>
 
         {/* Center: Moon + Timer */}
-        <div className="flex-1 flex flex-col items-center justify-center gap-6 px-5">
-          <div className="relative flex items-center justify-center">
+        <div className="flex-1 flex flex-col items-center justify-center gap-5 px-5">
+          <div
+            className="relative flex items-center justify-center"
+            style={{ width: timerSize, height: timerSize }}
+          >
+            {/* Moon sits behind the timer text as a soft glow — kept
+                small + low-opacity so it doesn't compete with MM:SS. */}
+            <div
+              className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-40"
+              aria-hidden="true"
+            >
+              <MoonAnimation isPlaying={isPlaying} size={Math.round(timerSize * 0.45)} />
+            </div>
             <CircularTimer
               totalSeconds={prefs.timerMinutes * 60}
               remainingSeconds={remainingSeconds}
-              size={240}
+              size={timerSize}
+              isPlaying={isPlaying}
+              label={language === "ar" ? "متبقي" : "remaining"}
             />
-            <div className="absolute inset-0 flex items-center justify-center">
-              <MoonAnimation isPlaying={isPlaying} />
-            </div>
           </div>
 
           {selectedSurah && (
@@ -277,16 +305,16 @@ export default function SleepModePage() {
               key={selectedSurah.number}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              className="text-center"
+              className="text-center space-y-0.5"
             >
-              <p className="text-2xl font-light text-amber-100 font-arabic" dir="rtl">
+              <p className="text-2xl font-light text-amber-100 font-arabic leading-tight" dir="rtl">
                 {selectedSurah.name}
               </p>
-              <p className="text-xs text-amber-200/40 mt-1">
+              <p className="text-xs text-amber-200/40">
                 {selectedSurah.englishName}
               </p>
               {selectedReciter && (
-                <p className="text-xs text-white/30 mt-0.5">
+                <p className="text-xs text-white/30">
                   {language === "ar" ? selectedReciter.name : selectedReciter.nameEn}
                 </p>
               )}

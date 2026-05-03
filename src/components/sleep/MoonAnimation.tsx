@@ -2,19 +2,22 @@ import { motion } from "framer-motion";
 
 interface MoonAnimationProps {
   isPlaying: boolean;
+  /** Pixel size of the moon SVG. Defaults to 120. */
+  size?: number;
 }
 
-export function MoonAnimation({ isPlaying }: MoonAnimationProps) {
+export function MoonAnimation({ isPlaying, size = 120 }: MoonAnimationProps) {
   return (
     <motion.div
       className="relative flex items-center justify-center"
+      style={{ width: size, height: size }}
       animate={isPlaying ? { scale: [1, 1.05, 1] } : { scale: 1 }}
       transition={isPlaying ? { duration: 4, repeat: Infinity, ease: "easeInOut" } : {}}
     >
       <div className="absolute inset-0 rounded-full bg-amber-300/10 blur-2xl scale-150" />
       <svg
-        width="120"
-        height="120"
+        width={size}
+        height={size}
         viewBox="0 0 120 120"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
@@ -55,13 +58,11 @@ export function MoonAnimation({ isPlaying }: MoonAnimationProps) {
             className="absolute inset-0 rounded-full border border-amber-300/20"
             animate={{ scale: [1, 1.4, 1.4], opacity: [0.6, 0, 0] }}
             transition={{ duration: 3, repeat: Infinity, ease: "easeOut" }}
-            style={{ width: 120, height: 120 }}
           />
           <motion.div
             className="absolute inset-0 rounded-full border border-amber-300/15"
             animate={{ scale: [1, 1.7, 1.7], opacity: [0.4, 0, 0] }}
             transition={{ duration: 3, repeat: Infinity, ease: "easeOut", delay: 1 }}
-            style={{ width: 120, height: 120 }}
           />
         </>
       )}
