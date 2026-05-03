@@ -1,3 +1,7 @@
+# Changelog
+
+All notable changes to WiseQuran will be documented in this file.
+
 ## [3.9.7] - 2026-05-03
 
 Sleep Mode now starts on the very first tap on iPhone. The countdown ring
@@ -6,10 +10,6 @@ of the screen on tall iPhones so it's easier to glance at from across the
 room. The moon now sits softly behind the time as a gentle glow, the spacing
 under the surah name is tidier, and the close button reads correctly to
 screen readers in both Arabic and English.
-
-# Changelog
-
-All notable changes to WiseQuran will be documented in this file.
 
 ## [3.4.0] - 2026-03-27
 
