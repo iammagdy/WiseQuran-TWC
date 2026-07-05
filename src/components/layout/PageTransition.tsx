@@ -1,14 +1,13 @@
 import { motion } from "framer-motion";
 import { useLocation } from "react-router-dom";
-import { ReactNode, useRef } from "react";
+import { ReactNode, forwardRef } from "react";
 
 const TAB_ORDER: Record<string, number> = {
   "/": 0,
   "/azkar": 1,
   "/prayer": 2,
   "/tasbeeh": 3,
-  "/ramadan": 4,
-  "/settings": 5,
+  "/settings": 4,
 };
 
 const DETAIL_ROUTES = ["/surah/", "/hifz/test", "/stats", "/qibla"];
@@ -55,52 +54,42 @@ const slideVariants = {
 
 const transition = {
   type: "spring" as const,
-  stiffness: 380,
-  damping: 38,
+  stiffness: 520,
+  damping: 42,
   mass: 0.8,
 };
 
-export default function PageTransition({ children }: { children: ReactNode }) {
-  const location = useLocation();
-  const prevPathRef = useRef<string | null>(null);
-  const prevPath = prevPathRef.current;
-  const currentPath = location.pathname;
+const PageTransition = forwardRef<HTMLDivElement, { children: ReactNode }>(
+  function PageTransition({ children }, ref) {
+    const location = useLocation();
+    const currentPath = location.pathname;
 
-  const prevIdx = prevPath ? getTabIndex(prevPath) : -1;
-  const currIdx = getTabIndex(currentPath);
-  const isDetail = isDetailPage(currentPath);
-  const wasDetail = prevPath ? isDetailPage(prevPath) : false;
+    const currIdx = getTabIndex(currentPath);
+    const isDetail = isDetailPage(currentPath);
 
-  let variant: keyof typeof slideVariants;
+    let variant: keyof typeof slideVariants = "fade";
 
-  if (isDetail && !wasDetail) {
-    variant = "pushUp";
-  } else if (!isDetail && wasDetail) {
-    variant = "popDown";
-  } else if (prevIdx === -1 || currIdx === -1) {
-    variant = "fade";
-  } else if (currIdx > prevIdx) {
-    variant = "enterFromRight";
-  } else if (currIdx < prevIdx) {
-    variant = "enterFromLeft";
-  } else {
-    variant = "fade";
+    if (isDetail) {
+      variant = "pushUp";
+    } else if (currIdx !== -1) {
+      variant = "enterFromRight";
+    }
+
+    const v = slideVariants[variant];
+
+    return (
+      <motion.div
+        ref={ref}
+        initial={v.initial}
+        animate={v.animate}
+        exit={v.exit}
+        transition={transition}
+        style={{ willChange: "transform, opacity" }}
+      >
+        {children}
+      </motion.div>
+    );
   }
+);
 
-  prevPathRef.current = currentPath;
-
-  const v = slideVariants[variant];
-
-  return (
-    <motion.div
-      key={location.key}
-      initial={v.initial}
-      animate={v.animate}
-      exit={v.exit}
-      transition={transition}
-      style={{ willChange: "transform, opacity" }}
-    >
-      {children}
-    </motion.div>
-  );
-}
+export default PageTransition;

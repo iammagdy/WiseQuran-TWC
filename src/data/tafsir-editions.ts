@@ -2,10 +2,12 @@ export interface TafsirEdition {
   id: string;
   name: string;
   nameEn: string;
+  /** True if the full text is bundled in the app and works offline. */
+  offline?: boolean;
 }
 
 export const TAFSIR_EDITIONS: TafsirEdition[] = [
-  { id: "ar.muyassar", name: "تفسير الميسر", nameEn: "Al-Muyassar Tafsir" },
+  { id: "ar.muyassar", name: "تفسير الميسر", nameEn: "Al-Muyassar Tafsir", offline: true },
   { id: "ar.jalalayn", name: "تفسير الجلالين", nameEn: "Tafsir Al-Jalalayn" },
   { id: "ar.qurtubi", name: "تفسير القرطبي", nameEn: "Tafsir Al-Qurtubi" },
   { id: "ar.baghawi", name: "تفسير البغوي", nameEn: "Tafsir Al-Baghawi" },

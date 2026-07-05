@@ -24,14 +24,14 @@ export async function fetchSurahList(): Promise<SurahMeta[]> {
   return SURAH_META;
 }
 
-export async function fetchSurahAyahs(surahNumber: number): Promise<Ayah[]> {
+export async function fetchSurahAyahs(surahNumber: number, signal?: AbortSignal): Promise<Ayah[]> {
   // Check local cache first
   const cached = await getSurah(surahNumber);
   if (cached) return cached.ayahs;
 
-  const res = await fetch(`${API_BASE}/surah/${surahNumber}/quran-uthmani`);
+  const res = await fetch(`${API_BASE}/surah/${surahNumber}/quran-uthmani`, { signal });
   const data = await res.json();
-  const ayahs: Ayah[] = data.data.ayahs.map((a: any) => ({
+  const ayahs: Ayah[] = data.data.ayahs.map((a: unknown) => ({
     number: a.number,
     text: a.text,
     numberInSurah: a.numberInSurah,
@@ -45,7 +45,7 @@ export async function fetchSurahAyahs(surahNumber: number): Promise<Ayah[]> {
 export async function downloadSurah(surahNumber: number): Promise<void> {
   const res = await fetch(`${API_BASE}/surah/${surahNumber}/quran-uthmani`);
   const data = await res.json();
-  const ayahs = data.data.ayahs.map((a: any) => ({
+  const ayahs = data.data.ayahs.map((a: unknown) => ({
     number: a.number,
     text: a.text,
     numberInSurah: a.numberInSurah,
@@ -66,7 +66,7 @@ export async function downloadAllSurahs(
   // Group ayahs by surah
   const surahMap = new Map<number, Ayah[]>();
   for (const a of data.data.surahs) {
-    const ayahs: Ayah[] = a.ayahs.map((ay: any) => ({
+    const ayahs: Ayah[] = a.ayahs.map((ay: unknown) => ({
       number: ay.number,
       text: ay.text,
       numberInSurah: ay.numberInSurah,
@@ -75,12 +75,14 @@ export async function downloadAllSurahs(
     surahMap.set(a.number, ayahs);
   }
 
-  // Save each surah to IndexedDB
+  // Save each surah to IndexedDB in parallel
   let saved = 0;
   const total = surahMap.size;
-  for (const [num, ayahs] of surahMap) {
+  const savePromises = Array.from(surahMap.entries()).map(async ([num, ayahs]) => {
     await saveSurah(num, ayahs);
     saved++;
     onProgress?.(Math.round((saved / total) * 100));
-  }
+  });
+
+  await Promise.all(savePromises);
 }

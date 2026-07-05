@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Play, Pause, Loader as Loader2, ChevronDown, RotateCcw, Repeat1, Volume2, Timer, X, SkipBack, SkipForward } from "lucide-react";
-import { useAudioPlayer } from "@/contexts/AudioPlayerContext";
+import { ChevronDown, Loader2, Pause, Play, RefreshCcw, Repeat1, RotateCcw, SkipBack, SkipForward, Timer, Volume2, X } from "lucide-react";
+import { useAudioPlayerState, useAudioPlayerAyah } from "@/hooks/useAudioPlayer";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { RECITERS, DEFAULT_RECITER, getReciterById } from "@/lib/reciters";
 import { cn, toArabicNumerals, stripBismillah } from "@/lib/utils";
@@ -24,8 +24,14 @@ interface Props {
 
 export default function ListeningTab({ surahNumber, surahName, ayahs, translationAyahs = [] }: Props) {
   const { t, language, isRTL } = useLanguage();
-  const player = useAudioPlayer();
-  const [reciterId, setReciterId] = useLocalStorage<string>("wise-reciter", DEFAULT_RECITER);
+  const player = useAudioPlayerState();
+  const { currentAyahInSurah: currentAyahInSurahFromTime } = useAudioPlayerAyah();
+  const [defaultReciterId] = useLocalStorage<string>("wise-reciter", DEFAULT_RECITER);
+  // Session-local override: persists for this listening session only and
+  // does not overwrite the global default reciter set in Settings.
+  const [sessionReciterId, setSessionReciterId] = useState<string | null>(null);
+  const reciterId = sessionReciterId ?? defaultReciterId;
+  const isSessionOverride = sessionReciterId !== null && sessionReciterId !== defaultReciterId;
 
   const [speed, setSpeed] = useState<number>(1);
   const [repeatCount, setRepeatCount] = useState<number>(0);
@@ -51,19 +57,32 @@ export default function ListeningTab({ surahNumber, surahName, ayahs, translatio
   const playing = isThisSurah && player.playing;
   const loading = isThisSurah && player.loading;
 
-  const currentAyahInSurah = isThisSurah ? player.currentAyahInSurah : null;
-  const currentAyah = ayahs.find((a) => a.numberInSurah === currentAyahInSurah);
+  const currentAyahInSurah = isThisSurah ? currentAyahInSurahFromTime : null;
+
+  // ⚡ Bolt: Optimize currentAyah lookup. Ayahs are typically sequential 1..N.
+  // Direct indexing O(1) is preferred, with a fallback to O(N) find() if missing/filtered.
+  let currentAyah = currentAyahInSurah != null ? ayahs[currentAyahInSurah - 1] : undefined;
+  if (currentAyahInSurah != null && currentAyah?.numberInSurah !== currentAyahInSurah) {
+    currentAyah = ayahs.find((a) => a.numberInSurah === currentAyahInSurah);
+  }
 
   // Keep currentAyahInSurah in ref for stale closure use in onAyahEnded
   currentAyahInSurahRef.current = currentAyahInSurah;
 
   const currentReciter = getReciterById(reciterId);
 
+  // ⚡ Bolt: Optimize translation lookups from O(N*M) to O(N) during render.
+  // Instead of calling translationAyahs.find() for every ayah in the list,
+  // build an O(1) lookup map once whenever translationAyahs changes.
+  const translationMap = useMemo(() => {
+    return new Map(translationAyahs.map((ta) => [ta.numberInSurah, ta]));
+  }, [translationAyahs]);
+
   const handlePlayPause = () => {
-    if (isThisSurah) {
+    if (isThisSurah && player.playingReciterId === reciterId) {
       player.togglePlayPause();
     } else {
-      player.play(surahNumber, surahName, ayahs);
+      player.play(surahNumber, surahName, ayahs, reciterId);
     }
   };
 
@@ -204,6 +223,7 @@ export default function ListeningTab({ surahNumber, surahName, ayahs, translatio
           ) : currentAyah ? (
             <AnimatePresence mode="wait">
               <motion.div
+                data-testid="listening-now-playing-card"
                 key={currentAyah.numberInSurah}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -227,7 +247,7 @@ export default function ListeningTab({ surahNumber, surahName, ayahs, translatio
                   {stripBismillah(currentAyah.text, surahNumber, currentAyah.numberInSurah)}
                 </p>
                 {translationAyahs.length > 0 && (() => {
-                  const tAyah = translationAyahs.find((ta) => ta.numberInSurah === currentAyah.numberInSurah);
+                  const tAyah = translationMap.get(currentAyah.numberInSurah);
                   return tAyah ? (
                     <p className="text-sm text-muted-foreground mt-3 leading-relaxed mx-auto max-w-sm text-center" dir="ltr">
                       {tAyah.text}
@@ -277,8 +297,9 @@ export default function ListeningTab({ surahNumber, surahName, ayahs, translatio
                 player.seekToAyah(ayahs[currentIndex - 1].numberInSurah);
               }
             }}
+            data-testid="listening-previous-ayah-button"
             disabled={!hasPrevAyah || !isThisSurah}
-            className="flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground transition-all disabled:opacity-30"
+            className="flex h-11 w-11 items-center justify-center rounded-full text-muted-foreground transition-all disabled:opacity-30"
             style={{ background: 'hsl(var(--muted))' }}
           >
             <SkipBack className="h-4 w-4" />
@@ -288,6 +309,7 @@ export default function ListeningTab({ surahNumber, surahName, ayahs, translatio
             whileTap={{ scale: 0.92 }}
             onClick={handlePlayPause}
             disabled={loading}
+            data-testid="listening-play-pause-button"
             className="flex h-16 w-16 items-center justify-center rounded-full text-primary-foreground disabled:opacity-50 shadow-md"
             style={{ background: 'hsl(var(--primary))' }}
           >
@@ -307,8 +329,9 @@ export default function ListeningTab({ surahNumber, surahName, ayahs, translatio
                 player.seekToAyah(ayahs[currentIndex + 1].numberInSurah);
               }
             }}
+            data-testid="listening-next-ayah-button"
             disabled={!hasNextAyah || !isThisSurah}
-            className="flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground transition-all disabled:opacity-30"
+            className="flex h-11 w-11 items-center justify-center rounded-full text-muted-foreground transition-all disabled:opacity-30"
             style={{ background: 'hsl(var(--muted))' }}
           >
             <SkipForward className="h-4 w-4" />
@@ -323,6 +346,7 @@ export default function ListeningTab({ surahNumber, surahName, ayahs, translatio
       >
         <button
           onClick={() => setShowReciterPicker((p) => !p)}
+          data-testid="listening-reciter-picker-toggle"
           className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-muted/30 transition-colors"
         >
           <div className="flex items-center gap-2">
@@ -330,10 +354,45 @@ export default function ListeningTab({ surahNumber, surahName, ayahs, translatio
             <span className="text-sm font-semibold">{t("reciter_label")}</span>
           </div>
           <div className="flex items-center gap-2">
+            {isSessionOverride && (
+              <span
+                className="text-[0.625rem] font-bold px-2 py-0.5 rounded-full"
+                style={{ background: 'hsl(var(--primary) / 0.12)', color: 'hsl(var(--primary))' }}
+              >
+                {language === "ar" ? "هذه الجلسة" : "This session"}
+              </span>
+            )}
             <span className="text-sm text-muted-foreground">{reciterDisplayName(currentReciter)}</span>
             <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", showReciterPicker && "rotate-180")} />
           </div>
         </button>
+
+        {isSessionOverride && (
+          <div
+            className="px-4 py-2 flex items-center justify-between border-t text-xs"
+            style={{ borderColor: 'hsl(var(--border) / 0.4)', background: 'hsl(var(--muted) / 0.3)' }}
+          >
+            <span className="text-muted-foreground">
+              {language === "ar"
+                ? `الافتراضي: ${reciterDisplayName(getReciterById(defaultReciterId))}`
+                : `Default: ${reciterDisplayName(getReciterById(defaultReciterId))}`}
+            </span>
+            <button
+              data-testid="listening-reciter-reset-button"
+              onClick={() => {
+                setSessionReciterId(null);
+                if (isThisSurah) {
+                  player.play(surahNumber, surahName, ayahs, defaultReciterId);
+                }
+              }}
+              className="flex items-center gap-1 font-semibold hover:opacity-80 transition-opacity"
+              style={{ color: 'hsl(var(--primary))' }}
+            >
+              <RefreshCcw className="h-3 w-3" />
+              {language === "ar" ? "إعادة للافتراضي" : "Reset"}
+            </button>
+          </div>
+        )}
 
         <AnimatePresence>
           {showReciterPicker && (
@@ -351,10 +410,15 @@ export default function ListeningTab({ surahNumber, surahName, ayahs, translatio
                   <button
                     key={r.id}
                     onClick={() => {
-                      setReciterId(r.id);
+                      // Session-local override only — does not change the
+                      // global default reciter saved in Settings.
+                      setSessionReciterId(r.id);
                       setShowReciterPicker(false);
-                      if (isThisSurah) player.stop();
+                      if (isThisSurah) {
+                        player.play(surahNumber, surahName, ayahs, r.id);
+                      }
                     }}
+                    data-testid={`listening-reciter-option-${r.id}`}
                     className={cn(
                       "w-full text-start px-4 py-3 text-sm transition-colors flex items-center justify-between",
                       idx < RECITERS.length - 1 && "border-b border-border/20",
@@ -400,6 +464,7 @@ export default function ListeningTab({ surahNumber, surahName, ayahs, translatio
               key={s}
               whileTap={{ scale: 0.92 }}
               onClick={() => setSpeed(s)}
+              data-testid={`listening-speed-option-${String(s).replace('.', '-')}`}
               className="flex-1 rounded-xl py-2.5 text-xs font-bold transition-all"
               style={speed === s ? {
                 background: 'hsl(var(--primary))',
@@ -439,6 +504,7 @@ export default function ListeningTab({ surahNumber, surahName, ayahs, translatio
                 setCurrentRepeat(0);
                 currentRepeatRef.current = 0;
               }}
+              data-testid={`listening-repeat-option-${r}`}
               className="flex-1 rounded-xl py-2.5 text-xs font-bold transition-all"
               style={repeatCount === r ? {
                 background: 'hsl(var(--primary))',
@@ -478,7 +544,9 @@ export default function ListeningTab({ surahNumber, surahName, ayahs, translatio
           )}
           {activeTimer && (
             <button
+              aria-label={language === "ar" ? "إلغاء المؤقت" : "Cancel timer"}
               onClick={cancelTimer}
+              data-testid="listening-timer-cancel-button"
               className={cn("ms-auto rounded-lg p-1 hover:bg-muted transition-colors text-muted-foreground", timerRunning && timerSecondsLeft > 0 && "ms-2")}
             >
               <X className="h-3.5 w-3.5" />
@@ -499,6 +567,7 @@ export default function ListeningTab({ surahNumber, surahName, ayahs, translatio
                 key={String(preset)}
                 whileTap={{ scale: 0.92 }}
                 onClick={() => isActive ? cancelTimer() : startTimer(preset)}
+                data-testid={`listening-timer-option-${String(preset)}`}
                 className="rounded-xl px-3 py-2 text-xs font-bold transition-all"
                 style={isActive ? {
                   background: 'hsl(var(--primary))',
@@ -549,7 +618,7 @@ export default function ListeningTab({ surahNumber, surahName, ayahs, translatio
           <div className="max-h-72 overflow-y-auto divide-y divide-border/30">
             {ayahs.map((ayah) => {
               const isCurrent = currentAyah?.numberInSurah === ayah.numberInSurah;
-              const tAyah = translationAyahs.find((ta) => ta.numberInSurah === ayah.numberInSurah);
+              const tAyah = translationMap.get(ayah.numberInSurah);
               return (
                 <motion.button
                   key={ayah.numberInSurah}
@@ -560,6 +629,7 @@ export default function ListeningTab({ surahNumber, surahName, ayahs, translatio
                   onClick={() => {
                     if (isThisSurah) player.seekToAyah(ayah.numberInSurah);
                   }}
+                  data-testid={`listening-ayah-row-${ayah.numberInSurah}`}
                   className={cn(
                     "w-full text-start px-4 py-3 transition-colors",
                     isCurrent ? "border-s-2" : "hover:bg-muted/30"

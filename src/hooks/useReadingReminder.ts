@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useLocalStorage } from "./useLocalStorage";
+import { showAppNotification } from "@/lib/notifications";
 
 interface ReminderSettings {
   enabled: boolean;
@@ -72,10 +73,8 @@ export function useReadingReminder() {
 
     const showNotification = () => {
       if ("Notification" in window && Notification.permission === "granted") {
-        new Notification("📖 حان وقت القراءة", {
+        showAppNotification("📖 حان وقت القراءة", {
           body: "لا تنسَ وردك اليومي من القرآن الكريم",
-          icon: "/icons/icon-192.png",
-          badge: "/icons/icon-192.png",
           tag: "reading-reminder",
           requireInteraction: false,
         });

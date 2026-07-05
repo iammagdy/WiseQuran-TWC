@@ -1,3 +1,4 @@
+import { useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Mic, MicOff, Square } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -8,17 +9,27 @@ interface Props {
   status: SpeechRecognitionStatus;
   onStart: () => void;
   onStop: () => void;
+  transcript: string;
   interimTranscript: string;
 }
 
-export default function MicButton({ status, onStart, onStop, interimTranscript }: Props) {
+export default function MicButton({ status, onStart, onStop, transcript, interimTranscript }: Props) {
   const { t, isRTL } = useLanguage();
+  const scrollRef = useRef<HTMLDivElement | null>(null);
 
   const isListening = status === "listening";
   const isProcessing = status === "processing";
 
+  const hasText = transcript || interimTranscript;
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [transcript, interimTranscript]);
+
   return (
-    <div className="flex flex-col items-center gap-4" dir={isRTL ? "rtl" : "ltr"}>
+    <div className="flex flex-col items-center gap-4 w-full" dir={isRTL ? "rtl" : "ltr"}>
       <motion.button
         whileTap={{ scale: 0.92 }}
         onClick={isListening ? onStop : onStart}
@@ -59,17 +70,39 @@ export default function MicButton({ status, onStart, onStop, interimTranscript }
         {isListening ? t("listening") : isProcessing ? t("processing") : t("tap_to_speak")}
       </p>
 
-      {isListening && interimTranscript && (
-        <motion.div
-          initial={{ opacity: 0, y: 4 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="rounded-xl bg-muted/60 border border-border/40 px-4 py-3 max-w-full"
-        >
-          <p className="font-arabic text-sm text-muted-foreground text-center leading-relaxed line-clamp-3" dir="rtl">
-            {interimTranscript}
-          </p>
-        </motion.div>
-      )}
+      <AnimatePresence>
+        {isListening && (
+          <motion.div
+            key="transcript-box"
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 4 }}
+            className="rounded-xl bg-muted/60 border border-border/40 px-4 py-3 w-full"
+          >
+            <div
+              ref={scrollRef}
+              className="max-h-24 overflow-y-auto"
+              dir="rtl"
+            >
+              {hasText ? (
+                <p className="font-arabic text-sm leading-relaxed text-center break-words">
+                  <span className="text-foreground">{transcript}</span>
+                  {transcript && interimTranscript && " "}
+                  <span className="text-muted-foreground">{interimTranscript}</span>
+                </p>
+              ) : (
+                <motion.p
+                  animate={{ opacity: [0.4, 0.9, 0.4] }}
+                  transition={{ duration: 1.8, repeat: Infinity }}
+                  className="text-xs text-muted-foreground text-center"
+                >
+                  {isRTL ? "جارٍ الاستماع..." : "Listening..."}
+                </motion.p>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

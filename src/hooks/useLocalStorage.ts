@@ -28,8 +28,10 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
     setStoredValue((prev) => {
       const next = value instanceof Function ? value(prev) : value;
       localStorage.setItem(key, JSON.stringify(next));
-      // Notify other hook instances
-      window.dispatchEvent(new CustomEvent(SYNC_EVENT, { detail: { key, newValue: next } }));
+      // Notify other hook instances asynchronously to avoid cross-component updates during render.
+      window.setTimeout(() => {
+        window.dispatchEvent(new CustomEvent(SYNC_EVENT, { detail: { key, newValue: next } }));
+      }, 0);
       return next;
     });
   }, [key]);

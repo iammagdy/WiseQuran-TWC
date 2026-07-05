@@ -85,7 +85,7 @@ function GuideSection({ icon, title, children, isRTL }: SectionProps) {
     <Collapsible open={open} onOpenChange={setOpen}>
       <CollapsibleTrigger className="flex w-full items-center gap-3 rounded-xl p-3 transition-colors hover:bg-muted/50">
         <span className="rounded-lg bg-primary/10 p-2 text-primary">{icon}</span>
-        <span className={cn("flex-1 font-bold text-sm", isRTL ? "text-right" : "text-left")}>{title}</span>
+        <span className={cn("flex-1 font-bold text-sm", isRTL ? "text-end" : "text-start")}>{title}</span>
         <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", open && "rotate-180")} />
       </CollapsibleTrigger>
       <CollapsibleContent>
@@ -174,7 +174,7 @@ export default function PrayerGuideCard() {
                 )}
               >
                 <span className="text-lg">{p.icon}</span>
-                <span className={cn("flex-1 font-semibold", isRTL ? "text-right" : "text-left")}>
+                <span className={cn("flex-1 font-semibold", isRTL ? "text-end" : "text-start")}>
                   {language === "ar" ? p.nameAr : p.nameEn}
                 </span>
                 <span className={cn(

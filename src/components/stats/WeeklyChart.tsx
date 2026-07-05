@@ -16,7 +16,7 @@ export function WeeklyChart({ data }: WeeklyChartProps) {
       initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.2 }}
-      className="rounded-2xl bg-card p-4 shadow-soft border border-border/50"
+      className="rounded-2xl glass-card p-4 shadow-soft"
       dir={isRTL ? "rtl" : "ltr"}
     >
       <h3 className="text-sm font-bold mb-4">{t("this_week")}</h3>

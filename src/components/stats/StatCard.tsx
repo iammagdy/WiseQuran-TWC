@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Video as LucideIcon } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { toArabicNumerals } from "@/lib/utils";
 import { useLanguage } from "@/contexts/LanguageContext";
 
@@ -18,8 +18,8 @@ export function StatCard({ icon: Icon, value, label, delay = 0, accent = false }
       initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay, duration: 0.4 }}
-      className={`rounded-2xl p-4 shadow-soft border border-border/50 ${
-        accent ? "bg-primary/10" : "bg-card"
+      className={`rounded-2xl glass-card p-4 shadow-soft ${
+        accent ? "bg-primary/10" : ""
       }`}
     >
       <div className="flex items-center gap-2 mb-2">

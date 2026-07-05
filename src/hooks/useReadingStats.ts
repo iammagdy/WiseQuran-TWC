@@ -43,12 +43,20 @@ export function useReadingStats() {
     [setLogs]
   );
 
+  const logsMap = useMemo(() => {
+    const map: Record<string, DailyLog> = {};
+    for (let i = 0; i < logs.length; i++) {
+      map[logs[i].date] = logs[i];
+    }
+    return map;
+  }, [logs]);
+
   const weeklyData = useMemo(() => {
     const days: { date: string; ayahCount: number; timeSpentMinutes: number; dayName: string }[] = [];
     const arabicDays = ["أحد", "إثنين", "ثلاثاء", "أربعاء", "خميس", "جمعة", "سبت"];
     for (let i = 6; i >= 0; i--) {
       const date = getDaysAgo(i);
-      const log = logs.find((l) => l.date === date);
+      const log = logsMap[date];
       const d = new Date(date + "T00:00:00");
       days.push({
         date,
@@ -58,17 +66,17 @@ export function useReadingStats() {
       });
     }
     return days;
-  }, [logs]);
+  }, [logsMap]);
 
   const monthlyData = useMemo(() => {
     const days: { date: string; ayahCount: number }[] = [];
     for (let i = 27; i >= 0; i--) {
       const date = getDaysAgo(i);
-      const log = logs.find((l) => l.date === date);
+      const log = logsMap[date];
       days.push({ date, ayahCount: log?.ayahCount || 0 });
     }
     return days;
-  }, [logs]);
+  }, [logsMap]);
 
   const totals = useMemo(() => {
     let totalAyahs = 0;

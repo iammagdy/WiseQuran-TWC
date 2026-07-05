@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Trophy, Lock, CircleCheck as CheckCircle } from "lucide-react";
+import { CheckCircle, Lock, Trophy, X } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useAchievements, type Achievement } from "@/hooks/useAchievements";
 import { Progress } from "@/components/ui/progress";
@@ -62,7 +62,7 @@ export function AchievementsSheet({ trigger }: Props) {
                 <div className="flex items-center gap-2 mb-3">
                   <span className="text-lg">{category.icon}</span>
                   <h3 className="font-bold text-foreground">{category.name}</h3>
-                  <span className="text-xs text-muted-foreground mr-auto">
+                  <span className="text-xs text-muted-foreground me-auto">
                     {language === "ar" ? toArabicNumerals(unlockedInCategory) : unlockedInCategory}/{language === "ar" ? toArabicNumerals(categoryAchievements.length) : categoryAchievements.length}
                   </span>
                 </div>
@@ -192,7 +192,7 @@ export function AchievementUnlockNotification() {
 
             <button
               onClick={dismissNewUnlock}
-              className="absolute top-3 right-3 p-1.5 rounded-full hover:bg-muted transition-colors"
+              className="absolute top-3 end-3 p-1.5 rounded-full hover:bg-muted transition-colors"
             >
               <X className="h-4 w-4 text-muted-foreground" />
             </button>

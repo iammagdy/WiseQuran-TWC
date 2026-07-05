@@ -1,10 +1,11 @@
 import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { azkarData, azkarSections, type AzkarCategory, type Dhikr } from "@/data/azkar-data";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { useStreak } from "@/hooks/useStreak";
 import { useAzkarCompletion } from "@/hooks/useAzkarCompletion";
-import { ArrowLeft, ArrowRight, RotateCcw, Heart, CircleCheck as CheckCircle2, ChevronDown, Search, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, ChevronDown, Heart, RotateCcw, Search, X } from "lucide-react";
 import { cn, toArabicNumerals } from "@/lib/utils";
 import { useLanguage } from "@/contexts/LanguageContext";
 
@@ -54,15 +55,19 @@ function DhikrCounter({
   onComplete,
   isFavorite,
   onToggleFavorite,
+  alreadyDone,
+  onReset,
 }: {
   dhikr: Dhikr;
   fontSize: number;
   onComplete: () => void;
   isFavorite: boolean;
   onToggleFavorite: () => void;
+  alreadyDone: boolean;
+  onReset: () => void;
 }) {
   const { language, t } = useLanguage();
-  const [remaining, setRemaining] = useState(dhikr.count);
+  const [remaining, setRemaining] = useState(alreadyDone ? 0 : dhikr.count);
   const done = remaining === 0;
 
   const handleTap = () => {
@@ -74,13 +79,18 @@ function DhikrCounter({
     }
   };
 
+  const handleReset = () => {
+    setRemaining(dhikr.count);
+    onReset();
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       className={cn(
         "rounded-2xl p-5 shadow-elevated transition-all border relative overflow-hidden",
-        done ? "bg-primary/8 border-primary/20" : "bg-card border-border/40"
+        done ? "glass-card bg-primary/8 border-primary/20" : "glass-card border-border/40"
       )}
     >
       {done && (
@@ -112,7 +122,7 @@ function DhikrCounter({
       </div>
 
       <p
-        className="font-arabic leading-loose text-right text-foreground mb-3"
+        className="font-arabic leading-loose text-end text-foreground mb-3"
         style={{ fontSize: fontSize * 0.85 }}
         dir="rtl"
       >
@@ -123,14 +133,15 @@ function DhikrCounter({
         <p className="text-xs text-muted-foreground mb-4 leading-relaxed">{dhikr.translation}</p>
       )}
       {dhikr.source && (
-        <p className="text-[11px] text-muted-foreground/50 mb-3 text-right" dir="rtl">{dhikr.source}</p>
+        <p className="text-[11px] text-muted-foreground/50 mb-3 text-end" dir="rtl">{dhikr.source}</p>
       )}
 
       <div className="flex items-center gap-2 mt-2">
         <motion.button
           whileTap={{ scale: 0.9 }}
-          onClick={() => setRemaining(dhikr.count)}
+          onClick={handleReset}
           className="rounded-xl p-2.5 text-muted-foreground hover:bg-muted transition-colors flex-shrink-0"
+          aria-label={t("reset") ?? "Reset"}
         >
           <RotateCcw className="h-4 w-4" />
         </motion.button>
@@ -168,17 +179,21 @@ function DhikrCounter({
 function CategoryCard({
   cat,
   isCategoryDone,
+  categoryProgress,
   isRTL,
   language,
   onClick,
 }: {
   cat: AzkarCategory;
   isCategoryDone: (id: string) => boolean;
+  categoryProgress: (id: string) => { done: number; total: number };
   isRTL: boolean;
   language: string;
   onClick: () => void;
 }) {
   const done = isCategoryDone(cat.id);
+  const progress = categoryProgress(cat.id);
+  const hasProgress = progress.done > 0 && !done;
   return (
     <motion.button
       initial={{ opacity: 0, y: 6 }}
@@ -188,8 +203,8 @@ function CategoryCard({
       className={cn(
         "relative flex flex-col rounded-2xl p-3.5 shadow-soft border transition-all group w-full text-start",
         done
-          ? "bg-primary/8 border-primary/20"
-          : "bg-card border-border/40 hover:border-primary/20 hover:shadow-elevated"
+          ? "glass-card bg-primary/8 border-primary/20"
+          : "glass-card border-border/40 hover:border-primary/20 hover:shadow-elevated"
       )}
       dir={isRTL ? "rtl" : "ltr"}
     >
@@ -202,22 +217,31 @@ function CategoryCard({
         </div>
       )}
 
-      <p className="font-bold text-xs leading-snug text-foreground mb-1.5 pr-5">
+      <p className="font-bold text-xs leading-snug text-foreground mb-1.5 pe-5">
         {language === "ar" ? cat.nameAr : cat.name}
       </p>
       <span className={cn(
         "text-[10px] rounded-full px-1.5 py-0.5 font-medium w-fit",
-        done ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"
+        done
+          ? "bg-primary/15 text-primary"
+          : hasProgress
+            ? "bg-amber-500/10 text-amber-700 dark:text-amber-400"
+            : "bg-muted text-muted-foreground"
       )}>
-        {language === "en"
-          ? `${cat.items.length}`
-          : toArabicNumerals(cat.items.length)}
+        {hasProgress
+          ? language === "en"
+            ? `${progress.done}/${progress.total}`
+            : `${toArabicNumerals(progress.done)}/${toArabicNumerals(progress.total)}`
+          : language === "en"
+            ? `${cat.items.length}`
+            : toArabicNumerals(cat.items.length)}
       </span>
     </motion.button>
   );
 }
 
 export default function AzkarPage() {
+  const navigate = useNavigate();
   const { t, language, isRTL } = useLanguage();
   const [selectedCategory, setSelectedCategory] = useState<AzkarCategory | null>(null);
   const [fontSize] = useLocalStorage<number>("wise-font-size", 24);
@@ -226,7 +250,7 @@ export default function AzkarPage() {
   const [expandedSections, setExpandedSections] = useLocalStorage<string[]>("wise-azkar-expanded-sections", ["daily"]);
   const [searchQuery, setSearchQuery] = useState("");
   const { markActive } = useStreak();
-  const { isCategoryDone } = useAzkarCompletion();
+  const { isCategoryDone, categoryProgress, isDhikrDone, markDhikrDone, resetDhikr } = useAzkarCompletion();
 
   const expandedSet = useMemo(() => new Set(expandedSections), [expandedSections]);
 
@@ -247,8 +271,8 @@ export default function AzkarPage() {
   };
 
   const favoriteDhikrItems = azkarData
-    .flatMap((cat) => cat.items)
-    .filter((d) => favoriteAzkar.includes(d.id));
+    .flatMap((cat) => cat.items.map((d) => ({ dhikr: d, categoryId: cat.id })))
+    .filter((entry) => favoriteAzkar.includes(entry.dhikr.id));
 
   const filteredSections = useMemo(() => {
     if (!searchQuery.trim()) return null;
@@ -280,8 +304,15 @@ export default function AzkarPage() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
-            <div className="flex items-center justify-between mb-4">
-              <div>
+            <div className="flex items-center gap-3 mb-4">
+              <motion.button
+                whileTap={{ scale: 0.9 }}
+                onClick={() => navigate("/")}
+                className="rounded-xl p-2.5 hover:bg-muted transition-colors flex-shrink-0 glass-card shadow-soft"
+              >
+                {isRTL ? <ArrowRight className="h-5 w-5" /> : <ArrowLeft className="h-5 w-5" />}
+              </motion.button>
+              <div className="flex-1 min-w-0">
                 <h1 className="mb-0.5 text-2xl font-bold heading-decorated">{t("azkar_title")}</h1>
                 <p className="text-xs text-muted-foreground">{t("azkar_subtitle")}</p>
               </div>
@@ -292,7 +323,7 @@ export default function AzkarPage() {
                   "rounded-xl p-2.5 transition-all shadow-soft border",
                   showFavorites
                     ? "bg-rose-500/10 text-rose-500 border-rose-500/20"
-                    : "bg-card text-muted-foreground hover:bg-muted border-border/40"
+                    : "glass-card text-muted-foreground hover:bg-muted"
                 )}
               >
                 <Heart className={cn("h-5 w-5", showFavorites && "fill-rose-500")} />
@@ -308,8 +339,8 @@ export default function AzkarPage() {
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder={t("azkar_search")}
                   className={cn(
-                    "w-full h-10 rounded-xl bg-card border border-border/40 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30 transition-all shadow-soft",
-                    isRTL ? "pr-9 pl-9 text-right" : "pl-9 pr-9"
+                    "w-full h-10 rounded-xl glass-card text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30 transition-all shadow-soft",
+                    isRTL ? "pe-9 ps-9 text-end" : "ps-9 pe-9"
                   )}
                   dir={isRTL ? "rtl" : "ltr"}
                 />
@@ -331,20 +362,22 @@ export default function AzkarPage() {
                   {t("favorites")}
                 </h2>
                 {favoriteDhikrItems.length === 0 ? (
-                  <div className="rounded-2xl bg-muted/30 border border-border/30 p-10 text-center">
+                  <div className="rounded-2xl glass-subtle p-10 text-center">
                     <Heart className="h-8 w-8 text-muted-foreground/30 mx-auto mb-3" />
                     <p className="text-sm text-muted-foreground">{t("no_favorites_azkar")}</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {favoriteDhikrItems.map((dhikr) => (
+                    {favoriteDhikrItems.map(({ dhikr, categoryId }) => (
                       <DhikrCounter
-                        key={dhikr.id}
+                        key={`${categoryId}:${dhikr.id}`}
                         dhikr={dhikr}
                         fontSize={fontSize}
-                        onComplete={() => markActive()}
+                        onComplete={() => { markDhikrDone(categoryId, dhikr.id); markActive(); }}
                         isFavorite={true}
                         onToggleFavorite={() => toggleFavorite(dhikr.id)}
+                        alreadyDone={isDhikrDone(categoryId, dhikr.id)}
+                        onReset={() => resetDhikr(categoryId, dhikr.id)}
                       />
                     ))}
                   </div>
@@ -365,6 +398,7 @@ export default function AzkarPage() {
                             key={cat.id}
                             cat={cat}
                             isCategoryDone={isCategoryDone}
+                            categoryProgress={categoryProgress}
                             isRTL={isRTL}
                             language={language}
                             onClick={() => setSelectedCategory(cat)}
@@ -374,7 +408,7 @@ export default function AzkarPage() {
                     </div>
                   ))
                 ) : (
-                  <div className="rounded-2xl bg-muted/30 border border-border/30 p-10 text-center">
+                  <div className="rounded-2xl glass-subtle p-10 text-center">
                     <Search className="h-8 w-8 text-muted-foreground/30 mx-auto mb-3" />
                     <p className="text-sm text-muted-foreground">{t("azkar_no_results")}</p>
                   </div>
@@ -393,8 +427,8 @@ export default function AzkarPage() {
                       key={section.id}
                       className={cn(
                         "rounded-2xl border shadow-soft overflow-hidden transition-all",
-                        allSectionDone ? "bg-primary/5 border-primary/15" :
-                        isExpanded ? "bg-card border-primary/20" : "bg-card border-border/40"
+                        allSectionDone ? "glass-card bg-primary/5 border-primary/15" :
+                        isExpanded ? "glass-card border-primary/20" : "glass-card border-border/40"
                       )}
                     >
                       <motion.button
@@ -444,6 +478,7 @@ export default function AzkarPage() {
                                   key={cat.id}
                                   cat={cat}
                                   isCategoryDone={isCategoryDone}
+                                  categoryProgress={categoryProgress}
                                   isRTL={isRTL}
                                   language={language}
                                   onClick={() => setSelectedCategory(cat)}
@@ -470,7 +505,7 @@ export default function AzkarPage() {
               <motion.button
                 whileTap={{ scale: 0.9 }}
                 onClick={() => setSelectedCategory(null)}
-                className="rounded-xl p-2.5 hover:bg-muted transition-colors flex-shrink-0 bg-card border border-border/40 shadow-soft"
+                className="rounded-xl p-2.5 hover:bg-muted transition-colors flex-shrink-0 glass-card shadow-soft"
               >
                 <BackIcon className="h-5 w-5" />
               </motion.button>
@@ -497,9 +532,11 @@ export default function AzkarPage() {
                   <DhikrCounter
                     dhikr={dhikr}
                     fontSize={fontSize}
-                    onComplete={() => markActive()}
+                    onComplete={() => { markDhikrDone(selectedCategory.id, dhikr.id); markActive(); }}
                     isFavorite={favoriteAzkar.includes(dhikr.id)}
                     onToggleFavorite={() => toggleFavorite(dhikr.id)}
+                    alreadyDone={isDhikrDone(selectedCategory.id, dhikr.id)}
+                    onReset={() => resetDhikr(selectedCategory.id, dhikr.id)}
                   />
                 </motion.div>
               ))}

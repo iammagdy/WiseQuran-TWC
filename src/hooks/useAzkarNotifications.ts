@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { calculatePrayerTimes, type PrayerTimes } from "@/lib/prayer-times";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { useLocation } from "@/hooks/useLocation";
+import { showAppNotification } from "@/lib/notifications";
 
 const AZKAR_TIMES = {
   fajr: {
@@ -60,22 +61,22 @@ export function useAzkarNotifications() {
       const fajr = AZKAR_TIMES.fajr;
       if (times.fajr === nowTime && !notifiedRef.current.has("morning")) {
         notifiedRef.current.add("morning");
-        new Notification(`${isAr ? fajr.nameAr : fajr.nameEn} ${fajr.icon}`, {
+        showAppNotification(`${isAr ? fajr.nameAr : fajr.nameEn} ${fajr.icon}`, {
           body: isAr ? fajr.bodyAr : fajr.bodyEn,
-          icon: "/icons/icon-192.png",
           dir: isAr ? "rtl" : "ltr",
           lang: isAr ? "ar" : "en",
+          tag: `wise-azkar-morning-${today}`,
         });
       }
 
       const maghrib = AZKAR_TIMES.maghrib;
       if (times.maghrib === nowTime && !notifiedRef.current.has("evening")) {
         notifiedRef.current.add("evening");
-        new Notification(`${isAr ? maghrib.nameAr : maghrib.nameEn} ${maghrib.icon}`, {
+        showAppNotification(`${isAr ? maghrib.nameAr : maghrib.nameEn} ${maghrib.icon}`, {
           body: isAr ? maghrib.bodyAr : maghrib.bodyEn,
-          icon: "/icons/icon-192.png",
           dir: isAr ? "rtl" : "ltr",
           lang: isAr ? "ar" : "en",
+          tag: `wise-azkar-evening-${today}`,
         });
       }
     };

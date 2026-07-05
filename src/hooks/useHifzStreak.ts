@@ -26,13 +26,37 @@ const DEFAULT_GOAL: HifzGoalState = {
   lastGoalDate: "",
 };
 
-function getToday(): string {
-  return new Date().toISOString().split("T")[0];
+/**
+ * Today's date in the user's local timezone as yyyy-mm-dd. Avoids
+ * `toISOString()`, which returns UTC and rolled the date forward for
+ * users in positive-UTC timezones after roughly 22:00 local time.
+ */
+export function getToday(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
-function daysBetween(d1: string, d2: string): number {
+/**
+ * Calendar-day difference between two yyyy-mm-dd date strings. Uses
+ * `Date.UTC` arithmetic so a 23- or 25-hour DST transition day still
+ * counts as one calendar day — the previous implementation floored a
+ * millisecond delta and reset streaks twice a year for much of the
+ * northern hemisphere.
+ */
+export function daysBetween(d1: string, d2: string): number {
   if (!d1) return 999;
-  return Math.floor((new Date(d2).getTime() - new Date(d1).getTime()) / (1000 * 60 * 60 * 24));
+  const parse = (s: string): number | null => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+    if (!m) return null;
+    return Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  };
+  const ms1 = parse(d1);
+  const ms2 = parse(d2);
+  if (ms1 === null || ms2 === null) return 999;
+  return Math.round((ms2 - ms1) / 86_400_000);
 }
 
 export function useHifzStreak() {

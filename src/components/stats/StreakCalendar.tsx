@@ -19,7 +19,7 @@ export function StreakCalendar({ data }: StreakCalendarProps) {
       initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.3 }}
-      className="rounded-2xl bg-card p-4 shadow-soft border border-border/50"
+      className="rounded-2xl glass-card p-4 shadow-soft"
       dir={isRTL ? "rtl" : "ltr"}
     >
       <h3 className="text-sm font-bold mb-3">{t("this_month")}</h3>

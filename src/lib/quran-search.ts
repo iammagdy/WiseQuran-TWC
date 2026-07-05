@@ -20,7 +20,8 @@ export async function searchAyahs(query: string): Promise<SearchResult[]> {
   const results: SearchResult[] = [];
 
   for (const surah of allSurahs) {
-    const meta = SURAH_META.find((m) => m.number === surah.number);
+    // ⚡ Bolt: O(1) direct indexing
+    const meta = SURAH_META[surah.number - 1];
     const surahName = meta?.name || `سورة ${surah.number}`;
 
     for (const ayah of surah.ayahs) {

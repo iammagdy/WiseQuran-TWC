@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { toArabicNumerals } from "@/lib/utils";
+import { cn, toArabicNumerals } from "@/lib/utils";
 import { motion } from "framer-motion";
-import { Moon, Sun, Trash2, Download, Check, ChevronDown, ChevronUp, Volume2, Loader as Loader2, Target, Type, Palette, Info, Bell, BellOff, Mic, BookOpen, Smartphone, Share, CircleCheck as CheckCircle, RotateCcw, Star, Clock, Pause, MoveVertical as MoreVertical, Menu, HardDrive, FileText, Music, BookMarked, Mail, Github, Globe, Sparkles, RefreshCw, Play, Square, User, LogOut, LogIn } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
-import { ADHAN_VOICES, ADHAN_STORAGE_KEY, DEFAULT_ADHAN_SETTINGS, TAKBIR_URL, type AdhanSettings } from "@/lib/adhan-settings";
-import { detectBrowser, getInstallInstructions } from "@/lib/browser-detect";
+import { ArchiveRestore, ArchiveX, ArrowLeft, ArrowRight, Bell, BellOff, BookMarked, BookOpen, Check, CheckCircle, ChevronDown, ChevronUp, Clock, Download, FileText, Github, Globe, HardDrive, Info, Loader2, Mail, Mic, Moon, MoreVertical, Music, Palette, Pause, Play, RefreshCw, RotateCcw, Share, Smartphone, Sparkles, Square, Sun, Target, Trash2, Type, Volume2 } from "lucide-react";
+import { exportBackup, downloadBackupFile, parseBackupFile, restoreBackup, estimateBackupSize, exportBackupBinary, downloadBackupBlob, restoreBackupFromFile, type BackupSizeEstimate } from "@/lib/backup";
+import { clearAllLocalBookmarks } from "@/lib/bookmarks";
+import { ADHAN_VOICES, REMINDER_SOUNDS, ADHAN_STORAGE_KEY, DEFAULT_ADHAN_SETTINGS, TAKBIR_URL, buildAzanSourceList, type AdhanSettings } from "@/lib/adhan-settings";
+import { detectBrowser } from "@/lib/browser-detect";
 import { CALCULATION_METHODS, type CalculationMethod } from "@/lib/prayer-times";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -16,17 +17,18 @@ import { useTheme } from "@/hooks/useTheme";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { useDailyReading } from "@/hooks/useDailyReading";
 import { useReadingReminder } from "@/hooks/useReadingReminder";
-import { clearAllData, getAllDownloadedSurahs, getAllDownloadedAudio, clearAllAudio, deleteAudio, getAudio, getStorageStats, clearAllTafsir } from "@/lib/db";
 import { downloadAllSurahs, fetchSurahList, type SurahMeta } from "@/lib/quran-api";
 import { downloadSurahAudio, formatBytes, verifyAndRepairDownloads } from "@/lib/quran-audio";
-import { RECITERS, DEFAULT_RECITER, getReciterAyahAudioUrl, getReciterAudioUrl } from "@/lib/reciters";
+import { RECITERS, DEFAULT_RECITER, getReciterAudioUrl } from "@/lib/reciters";
 import { TAFSIR_EDITIONS, DEFAULT_TAFSIR } from "@/data/tafsir-editions";
 import { TRANSLATION_EDITIONS, DEFAULT_TRANSLATION } from "@/data/translation-editions";
 import { toast } from "sonner";
-import { isRamadanNow, isRamadanTabVisible, hideRamadanTab, showRamadanTab } from "@/hooks/useRamadan";
-import { APP_VERSION, changelog } from "@/data/changelog";
+import { getMergedChangelog, getEffectiveVersion } from "@/lib/changelog-overrides";
+import { DiagnosticsSection } from "@/components/settings/DiagnosticsSection";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useServiceWorkerUpdate } from "@/hooks/useServiceWorkerUpdate";
+import { mobileAudioManager } from "@/lib/mobile-audio";
+import { showAppNotification } from "@/lib/notifications";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
@@ -42,11 +44,127 @@ import {
   AlertDialogTrigger } from
 "@/components/ui/alert-dialog";
 import FadeSection from "@/components/layout/FadeSection";
+import InstallModal from "@/components/quran/InstallModal";
+import { useReaderPersonalization } from "@/hooks/useReaderPersonalization";
+import { getHijriOffsetDays, setHijriOffsetDays } from "@/hooks/useRamadan";
+
+const loadDBModule = () => import("@/lib/settings-storage");
+
+/**
+ * Phase C — Device storage row.
+ *
+ * Surfaces `navigator.storage.estimate()` (used / quota) and offers a
+ * one-tap `navigator.storage.persist()` opt-in. Persisted storage is
+ * less likely to be evicted by the OS under disk pressure, which
+ * matters once a user has downloaded a few hundred MB of recitations.
+ *
+ * Both APIs are best-effort: on browsers that don't expose
+ * `navigator.storage` (notably some older WebViews) the row hides
+ * itself silently rather than showing a confusing empty state.
+ */
+function DeviceStorageRow() {
+  const { language } = useLanguage();
+  const supported =
+    typeof navigator !== "undefined" &&
+    !!navigator.storage &&
+    typeof navigator.storage.estimate === "function";
+
+  const [estimate, setEstimate] = useState<{ usage: number; quota: number } | null>(null);
+  const [persisted, setPersisted] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const refresh = useCallback(async () => {
+    if (!supported) return;
+    try {
+      const e = await navigator.storage.estimate();
+      setEstimate({ usage: e.usage ?? 0, quota: e.quota ?? 0 });
+    } catch {
+      /* ignore */
+    }
+    if (navigator.storage.persisted) {
+      try {
+        setPersisted(await navigator.storage.persisted());
+      } catch {
+        setPersisted(null);
+      }
+    }
+  }, [supported]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const requestPersist = useCallback(async () => {
+    if (!supported || !navigator.storage.persist) return;
+    setBusy(true);
+    try {
+      const granted = await navigator.storage.persist();
+      setPersisted(granted);
+      toast[granted ? "success" : "info"](
+        granted
+          ? language === "ar"
+            ? "تم تفعيل التخزين الدائم"
+            : "Persistent storage enabled"
+          : language === "ar"
+            ? "لم يمنح المتصفح التخزين الدائم"
+            : "Browser declined persistent storage",
+      );
+    } finally {
+      setBusy(false);
+      void refresh();
+    }
+  }, [supported, language, refresh]);
+
+  if (!supported || !estimate) return null;
+
+  const used = estimate.usage;
+  const quota = estimate.quota;
+  const pct = quota > 0 ? Math.min(100, (used / quota) * 100) : 0;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-medium">
+          {language === "ar" ? "مساحة الجهاز" : "Device storage"}
+        </span>
+        <span className="text-xs text-muted-foreground tabular-nums">
+          {formatBytes(used)} / {quota > 0 ? formatBytes(quota) : "—"}
+        </span>
+      </div>
+      <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+        <div
+          className="h-full rounded-full bg-gradient-to-l from-primary to-primary/70 transition-all"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      {persisted === true ? (
+        <p className="flex items-center gap-1.5 text-[0.6875rem] text-primary">
+          <CheckCircle className="h-3 w-3" />
+          {language === "ar"
+            ? "التخزين الدائم مفعّل — لن يحذف المتصفح ملفاتك تلقائياً"
+            : "Persistent storage on — your downloads won't be auto-evicted"}
+        </p>
+      ) : (
+        <button
+          type="button"
+          onClick={requestPersist}
+          disabled={busy}
+          className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-primary/20 bg-primary/5 py-2 text-xs font-medium text-primary transition hover:bg-primary/10 disabled:opacity-50"
+        >
+          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <HardDrive className="h-3.5 w-3.5" />}
+          {language === "ar" ? "تفعيل التخزين الدائم" : "Enable persistent storage"}
+        </button>
+      )}
+    </div>
+  );
+}
 
 export default function SettingsPage() {
   const { theme, toggleTheme, uiScale, setUIScale } = useTheme();
+  const [hijriOffset, setHijriOffset] = useState<number>(() => getHijriOffsetDays());
   const { t, language, setLanguage, isRTL } = useLanguage();
-  const { user, signOut } = useAuth();
+  const browserType = detectBrowser();
+  const isIOS = browserType === "ios-safari";
   const navigate = useNavigate();
   const [showChangelog, setShowChangelog] = useState(false);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
@@ -59,6 +177,7 @@ export default function SettingsPage() {
   const [calcMethod, setCalcMethod] = useLocalStorage<CalculationMethod>("wise-prayer-method", "egyptian");
   const [adhanSettings, setAdhanSettings] = useLocalStorage<AdhanSettings>(ADHAN_STORAGE_KEY, DEFAULT_ADHAN_SETTINGS);
   const [notificationsEnabled, setNotificationsEnabled] = useLocalStorage<boolean>("wise-prayer-notifications", false);
+  const [checkoffReminderEnabled, setCheckoffReminderEnabled] = useLocalStorage<boolean>("wise-prayer-checkoff-reminders", false);
   const [azkarNotificationsEnabled, setAzkarNotificationsEnabled] = useLocalStorage<boolean>("wise-azkar-notifications", false);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(
     "Notification" in window ? Notification.permission : "denied"
@@ -71,6 +190,18 @@ export default function SettingsPage() {
     updateTime: updateReadingReminderTime,
   } = useReadingReminder();
   const { goal, setGoal } = useDailyReading();
+  const {
+    lineSpacing,
+    setLineSpacing,
+    readerColorTheme,
+    setReaderColorTheme,
+    focusPreset,
+    setFocusPreset,
+    mushafFont,
+    setMushafFont,
+    wbwEnabled,
+    setWbwEnabled,
+  } = useReaderPersonalization();
   const [downloadedSurahs, setDownloadedSurahs] = useState<number[]>([]);
   const [downloadedAudio, setDownloadedAudio] = useState<number[]>([]);
   const [surahs, setSurahs] = useState<SurahMeta[]>([]);
@@ -90,44 +221,124 @@ export default function SettingsPage() {
   const refreshStorageStats = useCallback(async () => {
     setLoadingStats(true);
     try {
+      const { getStorageStats } = await loadDBModule();
       const stats = await getStorageStats();
       setStorageStats(stats);
     } catch {/* ignore */}
     setLoadingStats(false);
   }, []);
 
+  const [showInstallModal, setShowInstallModal] = useState(false);
+
   // Adhan voice preview
   const [previewingAdhan, setPreviewingAdhan] = useState<string | null>(null);
+  const [adhanPreviewLoading, setAdhanPreviewLoading] = useState<string | null>(null);
+  const [backupBusy, setBackupBusy] = useState(false);
+  const [backupSizeEstimate, setBackupSizeEstimate] = useState<BackupSizeEstimate | null>(null);
+  const [backupSizeLoading, setBackupSizeLoading] = useState(false);
+  const [pendingBackup, setPendingBackup] = useState<import("@/lib/backup").BackupData | null>(null);
+  const backupImportRef = useRef<HTMLInputElement>(null);
+
   const adhanPreviewRef = useRef<HTMLAudioElement | null>(null);
+  const adhanPreviewTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const azanFallbackRef = useRef<HTMLAudioElement | null>(null);
+  const lastAzanTouchRef = useRef(0);
+  const [previewingReminder, setPreviewingReminder] = useState<string | null>(null);
+  const reminderPreviewRef = useRef<HTMLAudioElement | null>(null);
+
+  const playAzanImmediately = useCallback((sources: string[], volumePercent: number, onSuccess?: () => void, onError?: () => void, onEnd?: () => void) => {
+    const candidates = buildAzanSourceList(sources, isIOS);
+    const fallbackAudio = azanFallbackRef.current;
+
+    if (!fallbackAudio) {
+      mobileAudioManager.playWithFallback("alarm", candidates, {
+        volume: Math.max(0, Math.min(1, volumePercent / 100)),
+        resetTime: true,
+      }).then(() => onSuccess?.()).catch(() => onError?.());
+      return;
+    }
+
+    let index = 0;
+    const trySource = () => {
+      const nextSource = candidates[index];
+      if (!nextSource) {
+        onError?.();
+        return;
+      }
+
+      fallbackAudio.pause();
+      fallbackAudio.src = nextSource;
+      fallbackAudio.preload = "auto";
+      fallbackAudio.volume = Math.max(0, Math.min(1, volumePercent / 100));
+      fallbackAudio.onended = () => onEnd?.();
+      fallbackAudio.onerror = () => {
+        index += 1;
+        trySource();
+      };
+      fallbackAudio.load();
+
+      const playAttempt = fallbackAudio.play();
+      playAttempt.then(() => {
+        onSuccess?.();
+      }).catch(() => {
+        index += 1;
+        trySource();
+      });
+    };
+
+    trySource();
+  }, [isIOS]);
 
   const stopAdhanPreview = useCallback(() => {
+    if (adhanPreviewTimeoutRef.current) {
+      clearTimeout(adhanPreviewTimeoutRef.current);
+      adhanPreviewTimeoutRef.current = null;
+    }
     if (adhanPreviewRef.current) {
       adhanPreviewRef.current.pause();
-      adhanPreviewRef.current.src = "";
+      adhanPreviewRef.current.removeAttribute("src");
+      adhanPreviewRef.current.load();
       adhanPreviewRef.current = null;
     }
     setPreviewingAdhan(null);
+    setAdhanPreviewLoading(null);
   }, []);
 
   const toggleAdhanPreview = useCallback((voiceId: string, src: string) => {
-    if (previewingAdhan === voiceId) {
+    if (previewingAdhan === voiceId || adhanPreviewLoading === voiceId) {
       stopAdhanPreview();
       return;
     }
     stopAdhanPreview();
-    const audio = new Audio(src);
-    audio.volume = Math.max(0, Math.min(1, adhanSettings.adhanVolume / 100));
-    adhanPreviewRef.current = audio;
-    setPreviewingAdhan(voiceId);
-    audio.play().catch(() => {
+    setAdhanPreviewLoading(voiceId);
+    adhanPreviewRef.current = azanFallbackRef.current;
+
+    adhanPreviewTimeoutRef.current = setTimeout(() => {
+      if (adhanPreviewRef.current) {
+        azanFallbackRef.current?.pause();
+        azanFallbackRef.current?.removeAttribute("src");
+        azanFallbackRef.current?.load();
+        adhanPreviewRef.current = null;
+        setAdhanPreviewLoading(null);
+        setPreviewingAdhan(null);
+        toast.error(language === "ar" ? "انتهت مهلة تحميل الأذان. تحقق من اتصالك." : "Adhan loading timed out. Check your connection.");
+      }
+    }, 12000);
+
+    playAzanImmediately([src], adhanSettings.adhanVolume, () => {
+      if (adhanPreviewTimeoutRef.current) clearTimeout(adhanPreviewTimeoutRef.current);
+      setAdhanPreviewLoading(null);
+      setPreviewingAdhan(voiceId);
+    }, () => {
+      if (adhanPreviewTimeoutRef.current) clearTimeout(adhanPreviewTimeoutRef.current);
+      setAdhanPreviewLoading(null);
       setPreviewingAdhan(null);
-      toast.error(language === "ar" ? "تعذّر تشغيل الأذان. تحقق من اتصالك بالإنترنت." : "Could not play adhan. Check your internet connection.");
-    });
-    audio.addEventListener("ended", () => {
+      toast.error(language === "ar" ? "تعذّر تحميل الأذان. قد يكون الخادم غير متاح مؤقتاً." : "Could not load adhan. The server may be temporarily unavailable.");
+    }, () => {
       adhanPreviewRef.current = null;
       setPreviewingAdhan(null);
     });
-  }, [previewingAdhan, stopAdhanPreview, adhanSettings.adhanVolume]);
+  }, [previewingAdhan, adhanPreviewLoading, stopAdhanPreview, adhanSettings.adhanVolume, language, playAzanImmediately]);
 
   // Preview reciter audio
   const [previewingReciter, setPreviewingReciter] = useState<string | null>(null);
@@ -136,8 +347,7 @@ export default function SettingsPage() {
 
   const stopPreview = useCallback(() => {
     if (previewAudioRef.current) {
-      previewAudioRef.current.pause();
-      previewAudioRef.current.src = "";
+      mobileAudioManager.stop("preview", true);
       previewAudioRef.current = null;
     }
     setPreviewingReciter(null);
@@ -156,10 +366,9 @@ export default function SettingsPage() {
     setPreviewLoading(r.id);
 
     // Create Audio IMMEDIATELY to preserve user gesture context
-    const audio = new Audio();
+    const audio = mobileAudioManager.getAudio("preview");
     previewAudioRef.current = audio;
-    // Silent unlock for iOS/Safari
-    audio.play().catch(() => {});
+    mobileAudioManager.prime("preview").catch(() => { /* ignore */ });
 
     // Now fetch the URL asynchronously
     const url = await getReciterAudioUrl(r.id, 1);
@@ -176,78 +385,104 @@ export default function SettingsPage() {
       }
     }, 10000);
 
-    audio.addEventListener("canplay", () => {
+    audio.oncanplay = () => {
       clearTimeout(timeoutId);
       setPreviewLoading(null);
       setPreviewingReciter(r.id);
-      audio.play().catch(() => {
+      mobileAudioManager.play("preview").catch(() => {
         setPreviewingReciter(null);
       });
-    }, { once: true });
+    };
 
-    audio.addEventListener("ended", () => {
+    audio.onended = () => {
       setPreviewingReciter(null);
-    }, { once: true });
+    };
 
-    audio.addEventListener("error", () => {
+    audio.onerror = () => {
       clearTimeout(timeoutId);
       setPreviewLoading(null);
       setPreviewingReciter(null);
       toast.error(t("settings_toast_preview_error"));
-    }, { once: true });
+    };
 
     // Set src after listeners are attached
     audio.src = url;
     audio.preload = "auto";
 
     audio.load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `t` is only used for the toast message; restarting preview audio when the language identity flips would interrupt playback mid-track
   }, [previewingReciter, stopPreview]);
 
   // Cleanup on unmount
   useEffect(() => {
+    if (azanFallbackRef.current) {
+      azanFallbackRef.current.setAttribute("playsinline", "");
+      azanFallbackRef.current.setAttribute("webkit-playsinline", "");
+    }
+
     return () => {
       if (previewAudioRef.current) {
         previewAudioRef.current.pause();
         previewAudioRef.current = null;
       }
+      if (adhanPreviewRef.current) {
+        adhanPreviewRef.current.pause();
+        adhanPreviewRef.current = null;
+      }
+      if (adhanPreviewTimeoutRef.current) {
+        clearTimeout(adhanPreviewTimeoutRef.current);
+        adhanPreviewTimeoutRef.current = null;
+      }
+      if (reminderPreviewRef.current) {
+        reminderPreviewRef.current.pause();
+        reminderPreviewRef.current = null;
+      }
+      if (azanFallbackRef.current) {
+        azanFallbackRef.current.pause();
+        azanFallbackRef.current = null;
+      }
     };
   }, []);
 
   // PWA Install
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  // The actual one-tap install path (deferredPrompt capture →
+  // deferredPrompt.prompt()) is owned by InstallBanner.tsx and the
+  // global beforeinstallprompt capture in src/main.tsx — Settings
+  // intentionally does NOT re-implement it here. Settings only tracks
+  // `isInstalled` so it can swap its instructional copy between
+  // "install the PWA" and "you've already installed". Do not
+  // reintroduce a second deferredPrompt state machine on this page;
+  // it would race with InstallBanner's capture and cause the install
+  // button there to silently no-op.
   const [isInstalled, setIsInstalled] = useState(false);
-  const browserType = detectBrowser();
-  const installInstructions = getInstallInstructions(browserType, language);
-  const isIOS = browserType === "ios-safari";
-  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone === true;
+  // navigator.standalone is iOS Safari-only.
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
 
   useEffect(() => {
     if (isStandalone) {
       setIsInstalled(true);
       return;
     }
+    // Suppress the browser's default install banner here; the actual
+    // install button + deferredPrompt.prompt() invocation lives in
+    // InstallBanner.tsx (see comment block above).
     const handler = (e: Event) => {
       e.preventDefault();
-      setDeferredPrompt(e);
     };
+    const installedHandler = () => setIsInstalled(true);
     window.addEventListener('beforeinstallprompt', handler);
-    window.addEventListener('appinstalled', () => setIsInstalled(true));
-    return () => window.removeEventListener('beforeinstallprompt', handler);
+    window.addEventListener('appinstalled', installedHandler);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handler);
+      window.removeEventListener('appinstalled', installedHandler);
+    };
   }, [isStandalone]);
 
-  const handleInstall = async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      setIsInstalled(true);
-    }
-    setDeferredPrompt(null);
-  };
-
   useEffect(() => {
-    getAllDownloadedSurahs().then(setDownloadedSurahs);
-    getAllDownloadedAudio(reciterId).then(setDownloadedAudio);
+    loadDBModule().then(({ getAllDownloadedSurahs, getAllDownloadedAudio }) => {
+      getAllDownloadedSurahs().then(setDownloadedSurahs);
+      getAllDownloadedAudio(reciterId).then(setDownloadedAudio);
+    });
     fetchSurahList().then(setSurahs);
     refreshStorageStats();
   }, [reciterId, refreshStorageStats]);
@@ -259,6 +494,7 @@ export default function SettingsPage() {
     } catch {
       toast.error(t("settings_toast_download_failed"));
     }
+    const { getAllDownloadedSurahs } = await loadDBModule();
     const updated = await getAllDownloadedSurahs();
     setDownloadedSurahs(updated);
     setDownloading(false);
@@ -269,6 +505,7 @@ export default function SettingsPage() {
   };
 
   const handleClear = async () => {
+    const { clearAllData } = await loadDBModule();
     await clearAllData();
     setDownloadedSurahs([]);
     setDownloadedAudio([]);
@@ -279,12 +516,34 @@ export default function SettingsPage() {
   const handleDownloadAllAudio = async () => {
     setAudioDownloading(true);
     const total = 114;
+    const toDownload = [];
+
     for (let i = 1; i <= total; i++) {
       if (!downloadedAudio.includes(i)) {
-        try {await downloadSurahAudio(reciterId, i);} catch {/* continue */}
+        toDownload.push(i);
       }
-      setAudioDownloadProgress(Math.round(i / total * 100));
     }
+
+    let completed = total - toDownload.length;
+    setAudioDownloadProgress(Math.round((completed / total) * 100));
+
+    const CONCURRENCY = 5;
+    for (let i = 0; i < toDownload.length; i += CONCURRENCY) {
+      const chunk = toDownload.slice(i, i + CONCURRENCY);
+      await Promise.all(
+        chunk.map(async (surahNum) => {
+          try {
+            await downloadSurahAudio(reciterId, surahNum);
+          } catch {
+            /* continue */
+          }
+          completed++;
+          setAudioDownloadProgress(Math.round((completed / total) * 100));
+        })
+      );
+    }
+
+    const { getAllDownloadedAudio } = await loadDBModule();
     const updated = await getAllDownloadedAudio(reciterId);
     setDownloadedAudio(updated);
     setAudioDownloading(false);
@@ -293,6 +552,7 @@ export default function SettingsPage() {
   };
 
   const handleClearAllAudio = async () => {
+    const { clearAllAudio } = await loadDBModule();
     await clearAllAudio();
     setDownloadedAudio([]);
     refreshStorageStats();
@@ -303,6 +563,7 @@ export default function SettingsPage() {
     setSingleAudioDownloading(num);
     try {
       const size = await downloadSurahAudio(reciterId, num);
+      const { getAllDownloadedAudio } = await loadDBModule();
       const updated = await getAllDownloadedAudio(reciterId);
       setDownloadedAudio(updated);
       refreshStorageStats();
@@ -314,6 +575,7 @@ export default function SettingsPage() {
   };
 
   const handleDeleteSingleAudio = async (num: number) => {
+    const { deleteAudio, getAllDownloadedAudio } = await loadDBModule();
     await deleteAudio(reciterId, num);
     const updated = await getAllDownloadedAudio(reciterId);
     setDownloadedAudio(updated);
@@ -321,9 +583,96 @@ export default function SettingsPage() {
   };
 
   const handleClearTafsir = async () => {
+    const { clearAllTafsir } = await loadDBModule();
     await clearAllTafsir();
     refreshStorageStats();
     toast.success(t("settings_toast_tafsir_cleared"));
+  };
+
+  const handleExportBackup = async (includeOfflineContent = false, includeAudio = false) => {
+    setBackupBusy(true);
+    try {
+      const dateStr = new Date().toISOString().slice(0, 10);
+      if (includeAudio) {
+        // Large archives go through the streamed binary format so we
+        // never materialise hundreds of megabytes of audio as a single
+        // JSON string.
+        const blob = await exportBackupBinary({ includeOfflineContent: true, includeAudio: true });
+        downloadBackupBlob(blob, `wise-quran-backup-${dateStr}.wqb`);
+      } else {
+        const data = await exportBackup({ includeOfflineContent, includeAudio: false });
+        downloadBackupFile(data);
+      }
+      toast.success(language === "ar" ? "تم تصدير النسخة الاحتياطية" : "Backup exported successfully");
+    } catch {
+      toast.error(language === "ar" ? "فشل تصدير النسخة الاحتياطية" : "Backup export failed");
+    } finally {
+      setBackupBusy(false);
+    }
+  };
+
+  // Estimates the "include everything" archive size so the user knows
+  // what they're downloading before they click export. Refreshed when
+  // the Backup & Restore card becomes visible.
+  const refreshBackupEstimate = useCallback(async () => {
+    setBackupSizeLoading(true);
+    try {
+      const est = await estimateBackupSize({ includeOfflineContent: true, includeAudio: true });
+      setBackupSizeEstimate(est);
+    } catch {
+      setBackupSizeEstimate(null);
+    } finally {
+      setBackupSizeLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshBackupEstimate();
+  }, [refreshBackupEstimate]);
+
+  const [pendingBackupFile, setPendingBackupFile] = useState<File | null>(null);
+
+  const handleImportBackup = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    // For large `.wqb` archives we intentionally don't parse the audio
+    // body up-front — `restoreBackupFromFile` streams it on demand.
+    // For small `.json` files we still pre-validate so we can show a
+    // clean confirm dialog.
+    if (/\.wqb$/i.test(file.name)) {
+      setPendingBackupFile(file);
+      setPendingBackup(null);
+      return;
+    }
+    try {
+      const data = await parseBackupFile(file);
+      setPendingBackup(data);
+      setPendingBackupFile(null);
+    } catch (err) {
+      toast.error(language === "ar" ? "فشل قراءة الملف" : `Cannot read file: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  };
+
+  const handleConfirmRestore = async () => {
+    if (!pendingBackup && !pendingBackupFile) return;
+    setBackupBusy(true);
+    try {
+      const result = pendingBackupFile
+        ? await restoreBackupFromFile(pendingBackupFile)
+        : await restoreBackup(pendingBackup!);
+      const summary = language === "ar"
+        ? `تمت الاستعادة (${result.lsKeysRestored} إعداد · ${result.azkarRestored} ذكر · ${result.audioRestored} مقطع صوتي) — إعادة تحميل…`
+        : `Restored ${result.lsKeysRestored} settings · ${result.azkarRestored} azkar · ${result.audioRestored} audio — reloading…`;
+      toast.success(summary);
+      setTimeout(() => window.location.reload(), 1200);
+    } catch (err) {
+      toast.error(language === "ar" ? "فشل استيراد النسخة الاحتياطية" : `Restore failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setBackupBusy(false);
+      setPendingBackup(null);
+      setPendingBackupFile(null);
+    }
   };
 
   const handleVerifyDownloads = async () => {
@@ -338,6 +687,7 @@ export default function SettingsPage() {
         }
       );
 
+      const { getAllDownloadedAudio } = await loadDBModule();
       const updated = await getAllDownloadedAudio(reciterId);
       setDownloadedAudio(updated);
       refreshStorageStats();
@@ -356,7 +706,7 @@ export default function SettingsPage() {
           { duration: 5000 }
         );
       }
-    } catch (e) {
+    } catch {
       toast.error(t("settings_toast_verify_failed"));
     } finally {
       setVerifying(false);
@@ -365,72 +715,126 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="px-4 pt-6 pl-[5px] pb-[20px]" dir={isRTL ? "rtl" : "ltr"}>
-      <h1 className="mb-1 text-2xl font-bold heading-decorated">{t("settings_title")}</h1>
+    <div className="px-4 pt-6 ps-[5px] pb-[20px]" dir={isRTL ? "rtl" : "ltr"}>
+      <div className="flex items-center gap-2 mb-1">
+        <motion.button
+          whileTap={{ scale: 0.9 }}
+          onClick={() => navigate(-1)}
+          className="rounded-xl p-2 hover:bg-muted transition-colors"
+        >
+          {isRTL ? <ArrowRight className="h-5 w-5" /> : <ArrowLeft className="h-5 w-5" />}
+        </motion.button>
+        <h1 className="text-2xl font-bold heading-decorated">{t("settings_title")}</h1>
+      </div>
       <p className="mb-6 text-sm text-muted-foreground">{t("settings_subtitle")}</p>
 
-      <div className="space-y-6">
-        {/* ─── Account ─── */}
+      <div className="space-y-10 pb-10">
+        {/* ─── HUB: PERSONALIZATION ─── */}
+        <div className="space-y-6">
+          <div className="flex items-center gap-3 px-1">
+            <div className="h-1 flex-1 bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
+            <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 shrink-0">
+              {isRTL ? "التخصيص" : "Personalization"}
+            </h2>
+            <div className="h-1 flex-1 bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
+          </div>
+
+        {/* ─── Install PWA ─── */}
+        {!isInstalled && (
+          <FadeSection>
+            <motion.div
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setShowInstallModal(true)}
+              className="relative group cursor-pointer overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/10 via-background/40 to-background/60 p-4 shadow-sm transition-all"
+            >
+              {/* Premium Gradient Glow */}
+              <div className="absolute -top-10 -end-10 h-32 w-32 rounded-full bg-primary/20 blur-3xl transition-opacity group-hover:opacity-60" />
+              <div className="absolute -bottom-10 -start-10 h-32 w-32 rounded-full bg-gold/10 blur-3xl transition-opacity group-hover:opacity-40" />
+
+              <div className="relative z-10 flex items-center gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-lg shadow-primary/20">
+                  <Smartphone className="h-6 w-6" />
+                </div>
+                
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-gradient">
+                      {language === "ar" ? "ثبّت التطبيق الآن" : "Install the App Now"}
+                    </h3>
+                    <div className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+                  </div>
+                  <p className="text-xs text-muted-foreground/80 truncate">
+                    {language === "ar" 
+                      ? "اضغط لمشاهدة طريقة التثبيت السريعة" 
+                      : "Tap to see the quick installation guide"}
+                  </p>
+                </div>
+
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/5 border border-white/10 text-muted-foreground group-hover:text-primary group-hover:border-primary/40 transition-all shadow-sm">
+                  {isRTL ? <ArrowLeft className="h-4 w-4" /> : <ArrowRight className="h-4 w-4" />}
+                </div>
+              </div>
+
+              {/* Shimmer Light Sweep */}
+              <div className="absolute inset-0 w-[200%] h-full bg-gradient-to-r from-transparent via-white/5 to-transparent skew-x-[-20deg] -translate-x-full group-hover:translate-x-[150%] transition-transform duration-1000 ease-out pointer-events-none" />
+            </motion.div>
+          </FadeSection>
+        )}
+
+        <InstallModal 
+          open={showInstallModal} 
+          onOpenChange={setShowInstallModal} 
+        />
+
+        {isInstalled && (
+          <FadeSection>
+            <div className="flex items-center justify-center gap-2 rounded-xl bg-primary/5 py-2 text-xs text-primary/80 border border-primary/10">
+              <CheckCircle className="h-3.5 w-3.5" />
+              <span>{t("install_app_already")}</span>
+            </div>
+          </FadeSection>
+        )}
+
         <section>
           <div className="section-title flex items-center gap-1.5">
-            <User className="h-3.5 w-3.5" />
-            {isRTL ? "الحساب" : "Account"}
+            <Sparkles className="h-3.5 w-3.5" />
+            {language === "ar" ? "أدوات سريعة" : "Quick Tools"}
           </div>
-          <FadeSection className="rounded-xl bg-card shadow-sm overflow-hidden">
-            {user ? (
-              <div className="px-4 py-4">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-full bg-primary/15 border border-primary/20 flex items-center justify-center shrink-0">
-                    <span className="text-sm font-bold text-primary uppercase">
-                      {user.email?.[0] ?? "U"}
-                    </span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-foreground truncate">{user.email}</p>
-                    <p className="text-xs text-muted-foreground">{isRTL ? "حساب نشط" : "Active account"}</p>
-                  </div>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
-                  onClick={async () => { await signOut(); }}
-                >
-                  <LogOut className="h-4 w-4 me-2" />
-                  {isRTL ? "تسجيل الخروج" : "Sign Out"}
-                </Button>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button
+              data-testid="settings-offline-center-button"
+              onClick={() => navigate("/offline")}
+              className="rounded-2xl border border-border/50 bg-card p-4 text-start shadow-soft hover:border-primary/30 transition-colors"
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <Download className="h-4 w-4 text-primary" />
+                <span className="text-sm font-semibold text-foreground">{language === "ar" ? "المكتبة بدون إنترنت" : "Offline Center"}</span>
               </div>
-            ) : (
-              <div className="px-4 py-4">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-full bg-muted border border-border flex items-center justify-center shrink-0">
-                    <User className="h-5 w-5 text-muted-foreground" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-foreground">{isRTL ? "غير مسجّل" : "Not signed in"}</p>
-                    <p className="text-xs text-muted-foreground">{isRTL ? "سجّل الدخول لحفظ تقدمك عبر أجهزتك" : "Sign in to save progress across devices"}</p>
-                  </div>
-                </div>
-                <Button
-                  size="sm"
-                  className="w-full"
-                  onClick={() => navigate("/signin")}
-                >
-                  <LogIn className="h-4 w-4 me-2" />
-                  {isRTL ? "تسجيل الدخول" : "Sign In"}
-                </Button>
+              <p className="text-xs text-muted-foreground">{language === "ar" ? "حمّل النصوص والصوت وأدرها من شاشة مخصصة." : "Download and manage text and audio from a dedicated screen."}</p>
+            </button>
+            <button
+              data-testid="settings-safari-diagnostics-button"
+              onClick={() => navigate("/settings/safari-diagnostics")}
+              className="rounded-2xl border border-border/50 bg-card p-4 text-start shadow-soft hover:border-primary/30 transition-colors"
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <Smartphone className="h-4 w-4 text-primary" />
+                <span className="text-sm font-semibold text-foreground">{language === "ar" ? "تشخيص Safari" : "Safari Diagnostics"}</span>
               </div>
-            )}
-          </FadeSection>
+              <p className="text-xs text-muted-foreground">{language === "ar" ? "افحص الصوت والمايك والإشعارات على iPhone Safari." : "Check audio, mic, and notifications on iPhone Safari."}</p>
+            </button>
+          </div>
         </section>
 
-        {/* ─── Language ─── */}
+        {/* ─── Language & Content ─── */}
         <section>
           <div className="section-title flex items-center gap-1.5">
             <Globe className="h-3.5 w-3.5" />
-            {t("language")}
+            {t("language")} & {t("translation_section")}
           </div>
           <FadeSection className="rounded-xl bg-card shadow-sm overflow-hidden">
+            {/* App Language Toggle */}
             <div className="flex gap-2 p-3">
               <button
                 onClick={() => setLanguage("ar")}
@@ -449,21 +853,10 @@ export default function SettingsPage() {
                 {t("language_english")}
               </button>
             </div>
-          </FadeSection>
-        </section>
 
-        {/* ─── Translation ─── */}
-        <section>
-          <div className="section-title flex items-center gap-1.5">
-            <Globe className="h-3.5 w-3.5" />
-            {t("translation_section")}
-          </div>
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.01 }}
-            className="rounded-xl bg-card shadow-sm overflow-hidden">
+            <Separator className="opacity-50" />
 
+            {/* Translation Settings */}
             <div className="flex items-center justify-between px-4 py-3.5">
               <div>
                 <span className="text-sm font-medium block">{t("show_translation")}</span>
@@ -496,7 +889,7 @@ export default function SettingsPage() {
                       }>
                         {translationId === t.id && <Check className="h-2.5 w-2.5 text-primary-foreground" />}
                       </div>
-                      <span className="flex-1 text-right">{t.name}</span>
+                      <span className="flex-1 text-end">{t.name}</span>
                       <span className="text-xs text-muted-foreground">{t.language}</span>
                     </button>
                     )}
@@ -504,10 +897,21 @@ export default function SettingsPage() {
                 </CollapsibleContent>
               </Collapsible>
             )}
-          </motion.div>
+          </FadeSection>
         </section>
+        </div>
 
-        {/* ─── Appearance & Reading ─── */}
+        {/* ─── HUB: READING EXPERIENCE ─── */}
+        <div className="space-y-6">
+          <div className="flex items-center gap-3 px-1">
+            <div className="h-1 flex-1 bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
+            <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 shrink-0">
+              {isRTL ? "تجربة القراءة" : "Reading Experience"}
+            </h2>
+            <div className="h-1 flex-1 bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
+          </div>
+
+          {/* ─── Appearance & Reading ─── */}
         <section>
           <div className="section-title flex items-center gap-1.5">
             <Palette className="h-3.5 w-3.5" />
@@ -557,6 +961,48 @@ export default function SettingsPage() {
 
             <Separator className="my-4" />
 
+            {/* Hijri calendar adjustment (±2 days) */}
+            <div>
+              <div className="mb-3 flex items-center gap-3">
+                <Moon className="h-4.5 w-4.5 text-primary" />
+                <span className="text-sm font-medium">
+                  {language === "ar" ? "ضبط التقويم الهجري" : "Hijri adjustment"}
+                </span>
+              </div>
+              <div className="flex gap-2">
+                {[-2, -1, 0, 1, 2].map((n) => {
+                  const active = hijriOffset === n;
+                  const label = n === 0
+                    ? (language === "ar" ? "افتراضي" : "Default")
+                    : (language === "ar" ? `${n > 0 ? "+" : ""}${toArabicNumerals(n)}` : `${n > 0 ? "+" : ""}${n}`);
+                  return (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => {
+                        setHijriOffsetDays(n);
+                        setHijriOffset(n);
+                      }}
+                      className={cn(
+                        "flex-1 rounded-xl py-2 text-xs font-medium transition-colors min-h-[36px]",
+                        active ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80",
+                      )}
+                      aria-pressed={active}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground/80">
+                {language === "ar"
+                  ? "يؤثر على اكتشاف رمضان والأذكار اليومية."
+                  : "Affects Ramadan and daily Azkar date detection."}
+              </p>
+            </div>
+
+            <Separator className="my-4" />
+
             {/* Font size */}
             <div>
               <div className="mb-3 flex items-center justify-between">
@@ -576,6 +1022,133 @@ export default function SettingsPage() {
               <div className="mt-3 text-center text-muted-foreground space-y-0.5">
                 <p className="font-arabic" style={{ fontSize }}>بِسْمِ اللَّهِ</p>
                 {language === "en" && <p className="text-xs text-muted-foreground/70">In the Name of Allah</p>}
+              </div>
+            </div>
+
+            <Separator className="my-4" />
+
+            <div className="space-y-4">
+              <div>
+                <div className="mb-3 flex items-center gap-3">
+                  <MoreVertical className="h-4.5 w-4.5 text-primary" />
+                  <span className="text-sm font-medium">{language === "ar" ? "تباعد السطور" : "Line Spacing"}</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { key: "compact", label: language === "ar" ? "مضغوط" : "Compact" },
+                    { key: "balanced", label: language === "ar" ? "متوازن" : "Balanced" },
+                    { key: "relaxed", label: language === "ar" ? "مريح" : "Relaxed" },
+                  ].map((option) => (
+                    <button
+                      key={option.key}
+                      data-testid={`settings-line-spacing-${option.key}`}
+                      onClick={() => setLineSpacing(option.key as typeof lineSpacing)}
+                      className={cn(
+                        "rounded-xl py-2 text-sm font-medium transition-colors",
+                        lineSpacing === option.key ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
+                      )}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <div className="mb-3 flex items-center gap-3">
+                  <Palette className="h-4.5 w-4.5 text-primary" />
+                  <span className="text-sm font-medium">{language === "ar" ? "لون النص" : "Text Tone"}</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { key: "classic", label: language === "ar" ? "كلاسيكي" : "Classic" },
+                    { key: "emerald", label: language === "ar" ? "زمردي" : "Emerald" },
+                    { key: "sepia", label: language === "ar" ? "سيبيا" : "Sepia" },
+                  ].map((option) => (
+                    <button
+                      key={option.key}
+                      data-testid={`settings-reader-theme-${option.key}`}
+                      onClick={() => setReaderColorTheme(option.key as typeof readerColorTheme)}
+                      className={cn(
+                        "rounded-xl py-2 text-sm font-medium transition-colors",
+                        readerColorTheme === option.key ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
+                      )}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <div className="mb-3 flex items-center gap-3">
+                  <BookOpen className="h-4.5 w-4.5 text-primary" />
+                  <span className="text-sm font-medium">{language === "ar" ? "خط المصحف" : "Mushaf Font"}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { key: "uthmanic", label: language === "ar" ? "عثماني" : "Uthmanic", className: "font-mushaf-uthmanic" },
+                    { key: "indopak", label: language === "ar" ? "هندي/باكستاني" : "Indopak", className: "font-mushaf-indopak" },
+                  ].map((option) => (
+                    <button
+                      key={option.key}
+                      data-testid={`settings-mushaf-font-${option.key}`}
+                      onClick={() => setMushafFont(option.key as typeof mushafFont)}
+                      className={cn(
+                        "rounded-xl py-2 text-sm font-medium transition-colors",
+                        mushafFont === option.key ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
+                      )}
+                    >
+                      <span className={cn("block text-base", option.className)}>﴿بِسْمِ اللَّهِ﴾</span>
+                      <span className="block text-[0.6875rem] mt-0.5 opacity-80">{option.label}</span>
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-2 text-[0.6875rem] text-muted-foreground">
+                  {language === "ar"
+                    ? "يطبَّق على عرض المصحف. يمكنك التبديل في أي وقت."
+                    : "Used in the Mushaf page view. Switch any time."}
+                </p>
+              </div>
+
+              <div>
+                <div className="mb-3 flex items-center gap-3">
+                  <Moon className="h-4.5 w-4.5 text-primary" />
+                  <span className="text-sm font-medium">{language === "ar" ? "وضع التركيز" : "Focus Preset"}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { key: "standard", label: language === "ar" ? "قياسي" : "Standard" },
+                    { key: "calm", label: language === "ar" ? "هادئ" : "Calm" },
+                  ].map((option) => (
+                    <button
+                      key={option.key}
+                      data-testid={`settings-focus-preset-${option.key}`}
+                      onClick={() => setFocusPreset(option.key as typeof focusPreset)}
+                      className={cn(
+                        "rounded-xl py-2 text-sm font-medium transition-colors",
+                        focusPreset === option.key ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
+                      )}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <BookOpen className="h-4.5 w-4.5 text-primary mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium">{t("wbw_settings_label")}</p>
+                    <p className="text-[0.6875rem] text-muted-foreground">{t("wbw_settings_description")}</p>
+                  </div>
+                </div>
+                <Switch
+                  checked={wbwEnabled}
+                  onCheckedChange={setWbwEnabled}
+                  data-testid="settings-wbw-toggle"
+                />
               </div>
             </div>
           </motion.div>
@@ -683,8 +1256,19 @@ export default function SettingsPage() {
             </Collapsible>
           </motion.div>
         </section>
+        </div>
 
-        {/* ─── Prayer Notifications ─── */}
+        {/* ─── HUB: PRAYER & SPIRITUALITY ─── */}
+        <div className="space-y-6">
+          <div className="flex items-center gap-3 px-1">
+            <div className="h-1 flex-1 bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
+            <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 shrink-0">
+              {isRTL ? "الصلاة والروحانيات" : "Prayer & Reminders"}
+            </h2>
+            <div className="h-1 flex-1 bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
+          </div>
+
+          {/* ─── Prayer Notifications ─── */}
         <section>
           <div className="section-title flex items-center gap-1.5">
             <Bell className="h-3.5 w-3.5" />
@@ -732,6 +1316,40 @@ export default function SettingsPage() {
               {notificationPermission === "denied" ?
               t("prayer_notifications_denied") :
               t("prayer_time_hint")}
+            </p>
+
+            <Separator className="my-4" />
+
+            {/* Check-off reminder */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                {checkoffReminderEnabled ?
+                <Bell className="h-4.5 w-4.5 text-primary" /> :
+                <BellOff className="h-4.5 w-4.5 text-muted-foreground" />}
+                <span className="text-sm font-medium">{t("prayer_checkoff_reminder")}</span>
+              </div>
+              <Switch
+                checked={checkoffReminderEnabled}
+                onCheckedChange={async (checked) => {
+                  if (checked) {
+                    if (!("Notification" in window)) {
+                      toast.error(t("notifications_not_supported"));
+                      return;
+                    }
+                    const perm = await Notification.requestPermission();
+                    setNotificationPermission(perm);
+                    if (perm === "granted") {
+                      setCheckoffReminderEnabled(true);
+                    } else {
+                      toast.error(t("notifications_permission_denied"));
+                    }
+                  } else {
+                    setCheckoffReminderEnabled(false);
+                  }
+                }} />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {t("prayer_checkoff_reminder_hint")}
             </p>
 
             <Separator className="my-4" />
@@ -827,6 +1445,27 @@ export default function SettingsPage() {
             <Music className="h-3.5 w-3.5" />
             {language === "ar" ? "الأذان والتذكيرات" : "Adhan & Reminders"}
           </div>
+
+          {isIOS && (
+            <FadeSection>
+              <div className="rounded-xl bg-blue-50 dark:bg-blue-950/30 p-3.5 border border-blue-200/60 dark:border-blue-800/40">
+                <div className="flex items-start gap-3">
+                  <Info className="h-5 w-5 text-blue-500 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">
+                      {language === "ar" ? "ملاحظة لمستخدمي iOS" : "Note for iOS Users"}
+                    </p>
+                    <p className="text-xs text-blue-700/80 dark:text-blue-400/80 mt-1">
+                      {language === "ar"
+                        ? "يتم التحكم في إخراج الصوت (مكبرات الصوت أو سماعات الرأس) من خلال مركز التحكم في جهازك، وليس من داخل التطبيق."
+                        : "Audio output (speakers vs. headphones) is controlled via your device's Control Center, not from within the app."}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </FadeSection>
+          )}
+
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -909,16 +1548,28 @@ export default function SettingsPage() {
                           </span>
                         </button>
                         <button
-                          onClick={() => toggleAdhanPreview(voice.id, voice.file)}
-                          className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium transition-colors shrink-0 ${
+                          onTouchEnd={(e) => {
+                            e.preventDefault();
+                            lastAzanTouchRef.current = Date.now();
+                            toggleAdhanPreview(voice.id, voice.file);
+                          }}
+                          onClick={() => {
+                            if (Date.now() - lastAzanTouchRef.current < 700) return;
+                            toggleAdhanPreview(voice.id, voice.file);
+                          }}
+                          className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium transition-all shrink-0 ${
                             previewingAdhan === voice.id
-                              ? "bg-primary/15 text-primary"
-                              : "bg-muted text-muted-foreground hover:bg-muted/80"
+                              ? "bg-destructive/15 text-destructive border border-destructive/20"
+                              : adhanPreviewLoading === voice.id
+                                ? "bg-primary/15 text-primary border border-primary/20"
+                                : "bg-muted text-muted-foreground hover:bg-muted/80 border border-transparent"
                           }`}
                         >
-                          {previewingAdhan === voice.id
-                            ? <><Square className="h-3 w-3" /> {language === "ar" ? "إيقاف" : "Stop"}</>
-                            : <><Play className="h-3 w-3" /> {language === "ar" ? "معاينة" : "Preview"}</>
+                          {adhanPreviewLoading === voice.id
+                            ? <><Loader2 className="h-3 w-3 animate-spin" /> {language === "ar" ? "إيقاف" : "Stop"}</>
+                            : previewingAdhan === voice.id
+                              ? <><Square className="h-3 w-3 fill-current" /> {language === "ar" ? "إيقاف" : "Stop"}</>
+                              : <><Play className="h-3 w-3" /> {language === "ar" ? "معاينة" : "Preview"}</>
                           }
                         </button>
                       </div>
@@ -962,7 +1613,7 @@ export default function SettingsPage() {
                       {language === "ar" ? "مستوى صوت الأذان" : "Adhan Volume"}
                     </p>
                     <span className="text-xs text-muted-foreground tabular-nums">
-                      {language === "ar" ? toArabicNumerals(String(adhanSettings.adhanVolume)) : adhanSettings.adhanVolume}%
+                      {language === "ar" ? `${toArabicNumerals(String(adhanSettings.adhanVolume))}٪` : `${adhanSettings.adhanVolume}%`}
                     </span>
                   </div>
                   <Slider
@@ -1033,6 +1684,81 @@ export default function SettingsPage() {
               </div>
             )}
 
+            {/* Reminder Sound Picker */}
+            {(adhanSettings.preReminderMinutes > 0 || adhanSettings.postReminderMinutes > 0) && (
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                  {language === "ar" ? "صوت التذكير" : "Reminder Sound"}
+                </p>
+                <div className="space-y-1.5">
+                  {REMINDER_SOUNDS.map((sound) => (
+                    <div
+                      key={sound.id}
+                      className={`flex items-center justify-between rounded-xl px-3 py-2.5 border transition-colors ${
+                        (adhanSettings.reminderSoundId ?? "chime") === sound.id
+                          ? "bg-primary/8 border-primary/20"
+                          : "bg-muted/40 border-border/40"
+                      }`}
+                    >
+                      <button
+                        onClick={() => setAdhanSettings({ ...adhanSettings, reminderSoundId: sound.id })}
+                        className="flex items-center gap-2.5 flex-1 min-w-0"
+                      >
+                        <div className={`h-4 w-4 shrink-0 rounded-full border-2 flex items-center justify-center transition-colors ${
+                          (adhanSettings.reminderSoundId ?? "chime") === sound.id ? "border-primary bg-primary" : "border-muted-foreground/30"
+                        }`}>
+                          {(adhanSettings.reminderSoundId ?? "chime") === sound.id && <Check className="h-2.5 w-2.5 text-primary-foreground" />}
+                        </div>
+                        <span className="text-sm font-medium truncate">
+                          {language === "ar" ? sound.nameAr : sound.nameEn}
+                        </span>
+                      </button>
+                      {sound.file && (
+                        <button
+                          onClick={() => {
+                            if (previewingReminder === sound.id) {
+                              if (reminderPreviewRef.current) {
+                                mobileAudioManager.stop("preview", true);
+                                reminderPreviewRef.current = null;
+                              }
+                              setPreviewingReminder(null);
+                              return;
+                            }
+                            if (reminderPreviewRef.current) {
+                              mobileAudioManager.stop("preview", true);
+                              reminderPreviewRef.current = null;
+                            }
+                            const audio = mobileAudioManager.getAudio("preview");
+                            audio.volume = Math.max(0, Math.min(1, adhanSettings.reminderVolume / 100));
+                            reminderPreviewRef.current = audio;
+                            setPreviewingReminder(sound.id);
+                            audio.onended = () => {
+                              setPreviewingReminder(null);
+                              reminderPreviewRef.current = null;
+                            };
+                            audio.src = sound.file;
+                            audio.load();
+                            mobileAudioManager.prime("preview").catch(() => {});
+                            mobileAudioManager.play("preview").catch(() => { setPreviewingReminder(null); });
+                          }}
+                          className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium transition-all shrink-0 ${
+                            previewingReminder === sound.id
+                              ? "bg-destructive/15 text-destructive border border-destructive/20"
+                              : "bg-muted text-muted-foreground hover:bg-muted/80 border border-transparent"
+                          }`}
+                        >
+                          {previewingReminder === sound.id
+                            ? <><Square className="h-3 w-3 fill-current" /> {language === "ar" ? "إيقاف" : "Stop"}</>
+                            : <><Play className="h-3 w-3" /> {language === "ar" ? "معاينة" : "Preview"}</>
+                          }
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Chime volume */}
             {(adhanSettings.preReminderMinutes > 0 || adhanSettings.postReminderMinutes > 0) && (
               <div>
@@ -1042,7 +1768,7 @@ export default function SettingsPage() {
                     {language === "ar" ? "مستوى صوت التذكيرات" : "Reminder Chime Volume"}
                   </p>
                   <span className="text-xs text-muted-foreground tabular-nums">
-                    {language === "ar" ? toArabicNumerals(String(adhanSettings.reminderVolume)) : adhanSettings.reminderVolume}%
+                    {language === "ar" ? `${toArabicNumerals(String(adhanSettings.reminderVolume))}٪` : `${adhanSettings.reminderVolume}%`}
                   </span>
                 </div>
                 <Slider
@@ -1103,15 +1829,22 @@ export default function SettingsPage() {
             {/* Test buttons */}
             <div className="flex gap-2 flex-wrap">
               <button
-                onClick={() => {
+                data-testid="settings-test-adhan-button"
+                onTouchEnd={(e) => {
+                  e.preventDefault();
+                  lastAzanTouchRef.current = Date.now();
                   const voice = ADHAN_VOICES.find((v) => v.id === adhanSettings.voiceId) ?? ADHAN_VOICES[0];
-                  const src = adhanSettings.takbirOnlyMode
-                    ? TAKBIR_URL
-                    : voice.file;
-                  const audio = new Audio(src);
-                  audio.volume = Math.max(0, Math.min(1, adhanSettings.adhanVolume / 100));
-                  audio.play().catch(() => {
-                    toast.error(language === "ar" ? "تعذّر تشغيل الأذان. تحقق من اتصالك بالإنترنت." : "Could not play adhan. Check your internet connection.");
+                  const src = adhanSettings.takbirOnlyMode ? TAKBIR_URL : voice.file;
+                  playAzanImmediately([src], adhanSettings.adhanVolume, undefined, () => {
+                    toast.error(language === "ar" ? "تعذر تشغيل الأذان، تحقق من الاتصال بالإنترنت" : "Could not play Azan. Check your internet connection.");
+                  });
+                }}
+                onClick={() => {
+                  if (Date.now() - lastAzanTouchRef.current < 700) return;
+                  const voice = ADHAN_VOICES.find((v) => v.id === adhanSettings.voiceId) ?? ADHAN_VOICES[0];
+                  const src = adhanSettings.takbirOnlyMode ? TAKBIR_URL : voice.file;
+                  playAzanImmediately([src], adhanSettings.adhanVolume, undefined, () => {
+                    toast.error(language === "ar" ? "تعذر تشغيل الأذان، تحقق من الاتصال بالإنترنت" : "Could not play Azan. Check your internet connection.");
                   });
                 }}
                 className="flex items-center gap-1.5 rounded-lg bg-muted px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted/80 transition-colors"
@@ -1120,14 +1853,15 @@ export default function SettingsPage() {
                 {language === "ar" ? "اختبر الأذان الآن" : "Test Adhan Now"}
               </button>
               <button
+                data-testid="settings-test-notification-button"
                 onClick={() => {
                   if (!("Notification" in window) || Notification.permission !== "granted") {
                     toast.error(language === "ar" ? "يرجى منح إذن الإشعارات أولاً" : "Please grant notification permission first");
                     return;
                   }
-                  new Notification(language === "ar" ? "حان وقت الصلاة 🕌" : "Prayer Time 🕌", {
+                  showAppNotification(language === "ar" ? "حان وقت الصلاة 🕌" : "Prayer Time 🕌", {
                     body: language === "ar" ? "هذا اختبار للإشعارات" : "This is a test notification",
-                    icon: "/icons/icon-192.png",
+                    tag: "wise-settings-test-notification",
                   });
                 }}
                 className="flex items-center gap-1.5 rounded-lg bg-muted px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted/80 transition-colors"
@@ -1136,6 +1870,8 @@ export default function SettingsPage() {
                 {language === "ar" ? "اختبر الإشعار" : "Test Notification"}
               </button>
             </div>
+
+            <audio ref={azanFallbackRef} preload="none" playsInline className="hidden" data-testid="settings-azan-fallback-audio" />
           </motion.div>
         </section>
 
@@ -1218,8 +1954,19 @@ export default function SettingsPage() {
             
           </motion.div>
         </section>
+        </div>
 
-        {/* ─── Downloads ─── */}
+        {/* ─── HUB: STORAGE & SYSTEM ─── */}
+        <div className="space-y-6">
+          <div className="flex items-center gap-3 px-1">
+            <div className="h-1 flex-1 bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
+            <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60 shrink-0">
+              {isRTL ? "النظام والبيانات" : "Storage & System"}
+            </h2>
+            <div className="h-1 flex-1 bg-gradient-to-r from-transparent via-primary/20 to-transparent" />
+          </div>
+
+          {/* ─── Downloads ─── */}
         <section>
           <div className="section-title flex items-center gap-1.5">
             <Download className="h-3.5 w-3.5" />
@@ -1250,7 +1997,7 @@ export default function SettingsPage() {
 
                   </div>
                   <p className="text-center text-xs text-muted-foreground">
-                    {t("downloads_downloading")} {language === "en" ? `${downloadProgress}%` : toArabicNumerals(`${downloadProgress}%`)}
+                    {t("downloads_downloading")} {language === "en" ? `${downloadProgress}%` : `${toArabicNumerals(String(downloadProgress))}٪`}
                   </p>
                 </div> :
 
@@ -1309,7 +2056,7 @@ export default function SettingsPage() {
 
                   </div>
                   <p className="text-center text-xs text-muted-foreground">
-                    {t("downloads_downloading_audio")} {language === "en" ? `${audioDownloadProgress}%` : toArabicNumerals(`${audioDownloadProgress}%`)}
+                    {t("downloads_downloading_audio")} {language === "en" ? `${audioDownloadProgress}%` : `${toArabicNumerals(String(audioDownloadProgress))}٪`}
                   </p>
                 </div> :
               verifying ?
@@ -1435,85 +2182,6 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        {/* ─── Install PWA ─── */}
-        {!isInstalled &&
-        <section>
-            <div className="section-title flex items-center gap-1.5">
-              <Smartphone className="h-3.5 w-3.5" />
-              {t("install_app")}
-            </div>
-            <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15 }}
-            className="rounded-xl bg-card p-5 shadow-sm">
-
-              {isIOS ?
-            <div className="space-y-3 text-center">
-                  <p className="text-sm text-foreground">{t("install_app_ios_intro")}</p>
-                  <div className="flex flex-col items-center gap-2 rounded-lg bg-muted/50 p-4">
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <span className="font-medium">1.</span>
-                      <span>{installInstructions.step1}</span>
-                      <Share className="h-4 w-4" />
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <span className="font-medium">2.</span>
-                      <span>{installInstructions.step2}</span>
-                    </div>
-                  </div>
-                </div> :
-            deferredPrompt ?
-            <div className="text-center space-y-3">
-                  <p className="text-sm text-muted-foreground">{t("install_subtitle")}</p>
-                  <button
-                onClick={handleInstall}
-                className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90">
-
-                    <Download className="h-4 w-4" />
-                    {t("install_app")}
-                  </button>
-                </div> :
-
-            <div className="space-y-3 text-center">
-                  <p className="text-sm text-foreground">{t("install_app_intro")}</p>
-                  <div className="flex flex-col items-center gap-2 rounded-lg bg-muted/50 p-4">
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <span className="font-medium">1.</span>
-                      <span>{installInstructions.step1}</span>
-                      {browserType === "chromium" && <MoreVertical className="h-4 w-4" />}
-                      {browserType === "firefox" && <Menu className="h-4 w-4" />}
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <span className="font-medium">2.</span>
-                      <span>{installInstructions.step2}</span>
-                    </div>
-                  </div>
-                </div>
-            }
-            </motion.div>
-          </section>
-        }
-
-        {isInstalled &&
-        <section>
-            <div className="section-title flex items-center gap-1.5">
-              <Smartphone className="h-3.5 w-3.5" />
-              {t("install_app")}
-            </div>
-            <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15 }}
-            className="rounded-xl bg-card p-5 shadow-sm">
-
-              <div className="flex items-center justify-center gap-2 text-sm text-primary">
-                <CheckCircle className="h-4 w-4" />
-                <span>{t("install_app_already")}</span>
-              </div>
-            </motion.div>
-          </section>
-        }
 
         {/* ─── Storage Management ─── */}
         <section>
@@ -1612,6 +2280,18 @@ export default function SettingsPage() {
                 {storageStats.total === 0 &&
               <p className="text-center text-xs text-muted-foreground py-2">{t("storage_empty")}</p>
               }
+
+                <Separator />
+
+                {/* Phase C: device storage estimate + persist toggle.
+                    `navigator.storage.estimate()` reports the OS-level
+                    quota for our origin so users can see how close they
+                    are to eviction; `persist()` asks the OS to mark the
+                    site's storage as durable so the IDB rows holding
+                    downloaded surahs aren't reclaimed under disk
+                    pressure. Both are best-effort and silently no-op
+                    on browsers that don't expose the Storage API. */}
+                <DeviceStorageRow />
               </> :
             null}
           </motion.div>
@@ -1655,6 +2335,7 @@ export default function SettingsPage() {
                       localStorage.removeItem("wise-daily-reading");
                       localStorage.removeItem("wise-streak");
                       localStorage.removeItem("wise-reading-history");
+                      void clearAllLocalBookmarks().catch(() => {});
                       toast.success(t("reset_progress_success"));
                       setTimeout(() => window.location.reload(), 500);
                     }}
@@ -1669,43 +2350,170 @@ export default function SettingsPage() {
           </motion.div>
         </section>
 
-        {/* ─── Ramadan Tab Visibility ─── */}
-        {isRamadanNow() &&
+        {/* ─── Backup & Restore ─── */}
         <section>
-            <div className="section-title flex items-center gap-1.5">
-              <Star className="h-3.5 w-3.5" />
-              {t("ramadan_tab")}
-            </div>
-            <motion.div
+          <div className="section-title flex items-center gap-1.5">
+            <ArchiveRestore className="h-3.5 w-3.5" />
+            {isRTL ? "النسخ الاحتياطي والاستعادة" : "Backup & Restore"}
+          </div>
+          <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.17 }}
-            className="rounded-xl bg-card p-4 shadow-sm">
+            transition={{ delay: 0.19 }}
+            className="rounded-xl bg-card p-4 shadow-sm space-y-4">
 
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="text-lg">🌙</span>
-                  <span className="text-sm font-medium">{t("ramadan_show_tab")}</span>
-                </div>
-                <Switch
-                checked={isRamadanTabVisible()}
-                onCheckedChange={(checked) => {
-                  if (checked) {
-                    showRamadanTab();
-                  } else {
-                    hideRamadanTab();
-                  }
-                  toast.success(checked ? t("ramadan_tab_shown") : t("ramadan_tab_hidden"));
-                  setTimeout(() => window.location.reload(), 500);
-                }} />
+            <p className="text-xs text-muted-foreground">
+              {isRTL
+                ? "احفظ تقدمك (الحفظ، القراءة، الأذكار، الأوراد، قائمة المزامنة) في ملف JSON للاستعادة على أي جهاز. يمكن أيضًا تضمين نص القرآن والتفاسير والملفات الصوتية المحملة."
+                : "Save your progress (hifz, reading, azkar, wird, pending sync) to a JSON file and restore it on any device. Downloaded Quran text, tafsir, and audio can optionally be included."}
+            </p>
 
-              </div>
-              <p className="mt-2 text-xs text-muted-foreground">
-                {t("ramadan_show_tab_desc")}
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <button
+                onClick={() => void handleExportBackup(false)}
+                disabled={backupBusy}
+                className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-primary py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50">
+                {backupBusy
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : <Download className="h-4 w-4" />}
+                {isRTL ? "تصدير البيانات" : "Export all data"}
+              </button>
+
+              <button
+                onClick={() => backupImportRef.current?.click()}
+                disabled={backupBusy}
+                className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-muted py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted/80 disabled:opacity-50">
+                {backupBusy
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : <ArchiveX className="h-4 w-4" />}
+                {isRTL ? "استيراد نسخة احتياطية" : "Import backup"}
+              </button>
+            </div>
+
+            <button
+              onClick={() => void handleExportBackup(true, false)}
+              disabled={backupBusy}
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-primary/30 bg-primary/5 py-2 text-xs font-medium text-primary transition-colors hover:bg-primary/10 disabled:opacity-50">
+              <Download className="h-3.5 w-3.5" />
+              <span>
+                {isRTL
+                  ? "تصدير شامل (نص القرآن والتفاسير)"
+                  : "Export with offline Quran text & tafsir"}
+                {backupSizeEstimate ? (
+                  <span className="ms-1 opacity-70">
+                    ≈ {formatBytes(
+                      backupSizeEstimate.localStorageBytes +
+                        backupSizeEstimate.azkarBytes +
+                        backupSizeEstimate.surahsBytes +
+                        backupSizeEstimate.tafsirBytes,
+                    )}
+                  </span>
+                ) : null}
+              </span>
+            </button>
+
+            <button
+              onClick={() => void handleExportBackup(true, true)}
+              disabled={backupBusy || (backupSizeEstimate?.audioBytes ?? 0) === 0}
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-primary/30 bg-primary/10 py-2 text-xs font-medium text-primary transition-colors hover:bg-primary/15 disabled:opacity-50">
+              <Download className="h-3.5 w-3.5" />
+              <span>
+                {isRTL
+                  ? "تصدير كامل (يضم الصوتيات المحمَّلة)"
+                  : "Full export with downloaded audio"}
+                {backupSizeEstimate ? (
+                  <span className="ms-1 opacity-70">
+                    ≈ {formatBytes(backupSizeEstimate.totalBytes)}
+                  </span>
+                ) : null}
+              </span>
+            </button>
+
+            {backupSizeEstimate && backupSizeEstimate.audioBytes > 50 * 1024 * 1024 ? (
+              <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                {isRTL
+                  ? "تنبيه: تضمين الصوتيات ينتج ملفًا كبيرًا قد لا يستورده بعض الأجهزة ذات الذاكرة المحدودة."
+                  : "Heads-up: including audio produces a large file that may be hard to import on low-memory devices."}
               </p>
-            </motion.div>
-          </section>
-        }
+            ) : null}
+
+            {backupSizeLoading ? (
+              <p className="text-[11px] text-muted-foreground">
+                {isRTL ? "جار حساب الحجم…" : "Estimating size…"}
+              </p>
+            ) : null}
+
+            <input
+              ref={backupImportRef}
+              type="file"
+              accept=".json,.wqb,application/json,application/octet-stream"
+              className="hidden"
+              onChange={(e) => void handleImportBackup(e)}
+            />
+          </motion.div>
+        </section>
+
+        {/* Restore confirmation dialog */}
+        <AlertDialog
+          open={!!pendingBackup || !!pendingBackupFile}
+          onOpenChange={(open) => {
+            if (!open) {
+              setPendingBackup(null);
+              setPendingBackupFile(null);
+            }
+          }}
+        >
+          <AlertDialogContent dir={isRTL ? "rtl" : "ltr"}>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                {isRTL ? "تأكيد استعادة النسخة الاحتياطية" : "Restore backup?"}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {isRTL
+                  ? `سيتم استبدال جميع البيانات الحالية بالنسخة الاحتياطية المؤرخة في ${pendingBackup ? new Date(pendingBackup.exportedAt).toLocaleString() : ""}. لا يمكن التراجع عن هذا الإجراء.`
+                  : `All current data will be replaced with the backup from ${pendingBackup ? new Date(pendingBackup.exportedAt).toLocaleString() : ""}. This cannot be undone.`}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter className="flex-row-reverse gap-2">
+              <AlertDialogAction
+                onClick={() => void handleConfirmRestore()}
+                disabled={backupBusy}
+                className="bg-primary text-primary-foreground hover:bg-primary/90">
+                {backupBusy
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : (isRTL ? "استعادة" : "Restore")}
+              </AlertDialogAction>
+              <AlertDialogCancel>{isRTL ? "إلغاء" : "Cancel"}</AlertDialogCancel>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <section>
+          <div className="section-title flex items-center gap-1.5">
+            <BookMarked className="h-3.5 w-3.5" />
+            {language === "ar" ? "الخصوصية والآداب" : "Privacy & Adab"}
+          </div>
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+            className="rounded-2xl border border-primary/15 bg-card/60 p-5 shadow-sm space-y-3"
+          >
+            <p className="font-arabic text-center text-lg text-gradient" dir="rtl">
+              ﴿بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ﴾
+            </p>
+            <p className="text-sm leading-relaxed text-muted-foreground" dir={isRTL ? "rtl" : "ltr"}>
+              {language === "ar"
+                ? "هذا التطبيق لا يتتبع المستخدمين، ولا يعرض أي إعلانات، ولا يبيع بياناتك لأحد. تبقى قراءاتك ومحفوظاتك وملاحظاتك على جهازك."
+                : "This app does not track users, does not show ads, and does not sell your data. Your reading, memorization, and notes stay on your device."}
+            </p>
+            <p className="text-xs leading-relaxed text-muted-foreground/80" dir={isRTL ? "rtl" : "ltr"}>
+              {language === "ar"
+                ? "نسأل الله أن يجعل هذا العمل خالصًا لوجهه الكريم، وأن ينفع به القارئ والمطوّر والمسلمين أجمعين."
+                : "We pray that this work is sincere for the sake of Allah, and that it benefits the reader, the developer, and the believers."}
+            </p>
+          </motion.div>
+        </section>
 
         <section>
           <div className="section-title flex items-center gap-1.5">
@@ -1720,11 +2528,12 @@ export default function SettingsPage() {
             
             <p className="font-arabic text-2xl font-bold text-gradient mb-1">Wise QURAN</p>
             <button
+              data-testid="settings-version-badge-button"
               onClick={() => setShowChangelog(true)}
               className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary hover:bg-primary/20 transition-colors cursor-pointer mb-3">
               
               <Sparkles className="h-3 w-3" />
-              v{APP_VERSION}
+              v{getEffectiveVersion()}
             </button>
 
             <Separator className="my-3" />
@@ -1732,6 +2541,7 @@ export default function SettingsPage() {
 
             {/* What's New button */}
             <Button
+              data-testid="settings-whats-new-button"
               variant="outline"
               size="sm"
               className="w-full gap-2 mb-3"
@@ -1739,6 +2549,12 @@ export default function SettingsPage() {
               <Sparkles className="h-3.5 w-3.5" />
               {t("whats_new_button")}
             </Button>
+
+            {/* Diagnostics — always reachable. Reads the always-on
+             * audio-debug-log ring buffer regardless of whether the
+             * console-mirror gate is enabled. See
+             * src/components/settings/DiagnosticsSection.tsx. */}
+            <DiagnosticsSection />
 
             {/* Check for Updates */}
             <Button
@@ -1795,28 +2611,83 @@ export default function SettingsPage() {
 
         {/* Changelog Sheet */}
         <Sheet open={showChangelog} onOpenChange={setShowChangelog}>
-          <SheetContent side="bottom" className="h-[70vh] rounded-t-2xl px-0 [&>button:last-child]:hidden">
+          <SheetContent side="bottom" className="h-[80vh] rounded-t-2xl px-0 [&>button:last-child]:hidden">
             <SheetHeader className="px-6 pb-4">
               <SheetTitle className="text-center font-arabic text-lg">{t("changelog")}</SheetTitle>
             </SheetHeader>
-            <ScrollArea className="h-full px-6 pb-8">
-              <div className="space-y-6">
-                {changelog.map((entry) =>
-                <div key={entry.version} className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="secondary" className="font-mono text-xs">v{entry.version}</Badge>
-                      <span className="text-xs text-muted-foreground">{entry.date}</span>
-                    </div>
-                    <ul className="space-y-1.5 pr-4" dir={language === "ar" ? "rtl" : "ltr"}>
-                      {(language === "en" ? entry.changesEn : entry.changes).map((change, i) =>
-                    <li key={i} className="flex items-start gap-2 text-sm text-foreground">
-                          <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
-                          {change}
-                        </li>
-                    )}
-                    </ul>
-                  </div>
-                )}
+            <ScrollArea className="h-full px-5 pb-8">
+              <div className="space-y-8 pb-6" dir={language === "ar" ? "rtl" : "ltr"}>
+                {getMergedChangelog().map((entry, entryIdx) => {
+                  const cats = language === "en" ? entry.en : entry.ar;
+                  const categoryOrder = ["features", "improvements", "fixes"] as const;
+                  const categoryConfig = {
+                    features: {
+                      label: language === "ar" ? "جديد" : "New",
+                      colorClass: "text-amber-500",
+                      bgClass: "bg-amber-50 dark:bg-amber-950/30",
+                      borderClass: "border-amber-200/60 dark:border-amber-800/40",
+                      dotClass: "bg-amber-500",
+                    },
+                    improvements: {
+                      label: language === "ar" ? "تحسينات" : "Improved",
+                      colorClass: "text-blue-500",
+                      bgClass: "bg-blue-50 dark:bg-blue-950/30",
+                      borderClass: "border-blue-200/60 dark:border-blue-800/40",
+                      dotClass: "bg-blue-500",
+                    },
+                    fixes: {
+                      label: language === "ar" ? "إصلاحات" : "Fixed",
+                      colorClass: "text-emerald-500",
+                      bgClass: "bg-emerald-50 dark:bg-emerald-950/30",
+                      borderClass: "border-emerald-200/60 dark:border-emerald-800/40",
+                      dotClass: "bg-emerald-500",
+                    },
+                  };
+                  return (
+                    <motion.div
+                      key={entry.version}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.04 * entryIdx, duration: 0.3 }}
+                      className="space-y-3"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary" className="font-mono text-xs px-2 py-0.5">v{entry.version}</Badge>
+                        <span className="text-xs text-muted-foreground">{entry.date}</span>
+                      </div>
+                      <div className="space-y-2">
+                        {categoryOrder.map((cat) => {
+                          const items = cats[cat];
+                          if (!items || items.length === 0) return null;
+                          const cfg = categoryConfig[cat];
+                          return (
+                            <div
+                              key={cat}
+                              className={`rounded-xl border p-3 ${cfg.bgClass} ${cfg.borderClass}`}
+                            >
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className={`text-xs font-semibold uppercase tracking-wider ${cfg.colorClass}`}>
+                                  {cfg.label}
+                                </span>
+                              </div>
+                              <ul className="space-y-1.5">
+                                {items.map((item, i) => (
+                                  <li
+                                    key={i}
+                                    className="flex items-start gap-2 text-sm text-foreground/85 leading-relaxed"
+                                  >
+                                    <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${cfg.dotClass}`} />
+                                    {item}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </motion.div>
+                  );
+                })}
               </div>
             </ScrollArea>
           </SheetContent>
@@ -1844,16 +2715,15 @@ export default function SettingsPage() {
                   backgroundSize: '200% 100%',
                   animation: 'shimmer 3s linear infinite'
                 }} />
-              
 
-              {/* Floating Ramadan emojis */}
+              {/* Floating neutral geometric decorations */}
               {[
-              { emoji: '🏮', top: '6px', right: '12px', size: 'text-xl', delay: 0 },
-              { emoji: '🌙', top: '8px', left: '14px', size: 'text-2xl', delay: 0.5 },
-              { emoji: '⭐', bottom: '8px', right: '16px', size: 'text-sm', delay: 1.2 },
-              { emoji: '✨', bottom: '12px', left: '18px', size: 'text-base', delay: 0.8 },
-              { emoji: '🕌', top: '50%', right: '8px', size: 'text-sm', delay: 1.5 },
-              { emoji: '🏮', bottom: '6px', left: '50%', size: 'text-lg', delay: 0.3 }].
+              { symbol: '✦', top: '8px', right: '14px', size: 'text-lg', delay: 0 },
+              { symbol: '✧', top: '10px', left: '16px', size: 'text-xl', delay: 0.5 },
+              { symbol: '◆', bottom: '10px', right: '18px', size: 'text-xs', delay: 1.2 },
+              { symbol: '✦', bottom: '14px', left: '20px', size: 'text-sm', delay: 0.8 },
+              { symbol: '✧', top: '50%', right: '10px', size: 'text-xs', delay: 1.5 },
+              { symbol: '◇', bottom: '8px', left: '48%', size: 'text-sm', delay: 0.3 }].
               map((item, i) =>
               <motion.span
                 key={i}
@@ -1863,46 +2733,66 @@ export default function SettingsPage() {
                   bottom: item.bottom,
                   left: item.left,
                   right: item.right,
-                  opacity: 0.35
+                  opacity: 0.25,
+                  color: 'hsl(var(--gold))'
                 }}
-                animate={{ y: [0, -8, 0] }}
+                animate={{ y: [0, -6, 0], opacity: [0.25, 0.45, 0.25] }}
                 transition={{
-                  duration: 3,
+                  duration: 3.5,
                   repeat: Infinity,
                   ease: 'easeInOut',
                   delay: item.delay
                 }}>
-                
-                  {item.emoji}
+                  {item.symbol}
                 </motion.span>
               )}
 
-              {/* Developer badge */}
-              <motion.span
-                className="inline-block mb-2 px-3 py-0.5 font-bold rounded-full text-sm bg-accent"
+              {/* Open Source badge */}
+              <motion.a
+                href="https://github.com/iammagdy/WiseQuran"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 mb-3 px-2.5 py-0.5 rounded-full text-xs font-medium border transition-colors"
                 style={{
-                  background: 'linear-gradient(135deg, hsl(var(--gold)), hsl(42 90% 60%))',
-                  color: 'hsl(var(--gold-foreground))'
+                  borderColor: 'hsl(var(--primary) / 0.4)',
+                  color: 'hsl(var(--primary))',
+                  background: 'hsl(var(--primary) / 0.06)'
                 }}
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ type: 'spring', delay: 0.4 }}>
-                
-                {language === "en" ? "Developer ✦" : "المطوّر ✦"}
-              </motion.span>
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ type: 'spring', delay: 0.3 }}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.97 }}>
+                <Github size={11} />
+                {language === "en" ? "Open Source" : "مصدر مفتوح"}
+              </motion.a>
+
+              {/* Developer badge */}
+              <div>
+                <motion.span
+                  className="inline-block mb-2 px-3 py-0.5 font-bold rounded-full text-sm"
+                  style={{
+                    background: 'linear-gradient(135deg, hsl(var(--gold)), hsl(42 90% 60%))',
+                    color: 'hsl(var(--gold-foreground))'
+                  }}
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: 'spring', delay: 0.4 }}>
+                  {language === "en" ? "Developer ✦" : "المطوّر ✦"}
+                </motion.span>
+              </div>
 
               <p
                 className="font-bold text-foreground mb-1 text-2xl"
                 style={{ textShadow: '0 0 12px hsl(var(--gold) / 0.3)' }}>
-
                 {language === "en" ? "Magdy Saber" : "مجدي صابر"}
               </p>
 
               <p className="text-xs text-muted-foreground mb-4">
-                {language === "en" ? "Made with ❤️ in Ramadan 🌙" : "صنع بـ ❤️ في رمضان 🌙"}
+                {language === "en" ? "Made with ❤️" : "صنع بـ ❤️"}
               </p>
 
-              <div className="flex items-center justify-center gap-3">
+              <div className="flex items-center justify-center gap-3 mb-4">
                 {[
                 { href: 'mailto:contact@magdysaber.com', icon: <Mail size={18} />, title: 'Email' },
                 { href: 'https://github.com/iammagdy', icon: <Github size={18} />, title: 'GitHub' },
@@ -1914,7 +2804,7 @@ export default function SettingsPage() {
                   target={link.href.startsWith('mailto') ? undefined : '_blank'}
                   rel={link.href.startsWith('mailto') ? undefined : 'noopener noreferrer'}
                   title={link.title}
-                  className="flex items-center justify-center w-10 h-10 rounded-full text-gold-foreground transition-colors"
+                  className="flex items-center justify-center w-10 h-10 rounded-full transition-colors"
                   style={{
                     background: 'linear-gradient(135deg, hsl(var(--gold) / 0.2), hsl(var(--primary) / 0.15))',
                     color: 'hsl(var(--primary))'
@@ -1924,14 +2814,32 @@ export default function SettingsPage() {
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.5 + i * 0.1 }}>
-                  
                     {link.icon}
                   </motion.a>
                 )}
               </div>
+
+              {/* Get in Touch CTA */}
+              <motion.a
+                href="mailto:contact@magdysaber.com"
+                className="inline-flex items-center justify-center gap-2 w-full max-w-[220px] px-5 py-2.5 rounded-full font-semibold text-sm transition-all"
+                style={{
+                  background: 'linear-gradient(135deg, hsl(var(--gold)), hsl(42 90% 60%))',
+                  color: 'hsl(var(--gold-foreground))',
+                  boxShadow: '0 2px 14px hsl(var(--gold) / 0.35)'
+                }}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.8, type: 'spring', stiffness: 200, damping: 18 }}
+                whileHover={{ scale: 1.04, boxShadow: '0 4px 20px hsl(var(--gold) / 0.5)' }}
+                whileTap={{ scale: 0.97 }}>
+                <Mail size={15} />
+                {language === "en" ? "Get in Touch" : "تواصل معي"}
+              </motion.a>
             </div>
           </motion.div>
         </section>
+        </div>
       </div>
     </div>);
 

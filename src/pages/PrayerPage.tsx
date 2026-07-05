@@ -2,10 +2,21 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { motion } from "framer-motion";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 import { useStreak } from "@/hooks/useStreak";
+import {
+  loadPrayerLog,
+  savePrayerLog,
+  setPrayerStatus,
+  getPrayerStreak,
+  syncPrayerStatus,
+  writeLegacyToday,
+  todayKey as logTodayKey,
+  type PrayerId,
+  type PrayerLog,
+} from "@/lib/prayer-log";
 import { Progress } from "@/components/ui/progress";
 import { cn, getDayName, getHijriDateLocalized, getGregorianDateLocalized, toArabicNumerals } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
-import { Compass, MapPin, ChevronLeft, Flame, History, Search } from "lucide-react";
+import { Compass, MapPin, ChevronLeft, Flame, History, Search, ArrowLeft, ArrowRight, Sparkles } from "lucide-react";
 import PrayerGuideCard from "@/components/prayer/PrayerGuideCard";
 import PrayerHistorySheet from "@/components/prayer/PrayerHistorySheet";
 import CitySearchModal from "@/components/prayer/CitySearchModal";
@@ -19,7 +30,6 @@ import {
 "@/lib/prayer-times";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/lib/supabase";
 import type { City } from "@/data/cities";
 import { useLocation } from "@/hooks/useLocation";
 
@@ -73,6 +83,7 @@ export default function PrayerPage() {
     date: getTodayKey(),
     completed: []
   });
+  const [prayerLog, setPrayerLog] = useState<PrayerLog>(() => loadPrayerLog());
   const [calcMethod] = useLocalStorage<CalculationMethod>("wise-prayer-method", "egyptian");
   const [historyOpen, setHistoryOpen] = useState(false);
   const [citySearchOpen, setCitySearchOpen] = useState(false);
@@ -127,23 +138,30 @@ export default function PrayerPage() {
   }, [data, setData]);
 
   const togglePrayer = useCallback((prayerId: string) => {
+    const today = getTodayKey();
     const isCompleting = !todayData.completed.includes(prayerId);
     const newCompleted = isCompleting
       ? [...todayData.completed, prayerId]
       : todayData.completed.filter((p) => p !== prayerId);
     setData({ ...todayData, completed: newCompleted });
 
-    if (user) {
-      const today = getTodayKey();
-      supabase.from("user_prayer_history").upsert({
-        user_id: user.id,
-        date: today,
-        prayer_name: prayerId,
-        completed: isCompleting,
-        completed_at: isCompleting ? new Date().toISOString() : null,
-      }, { onConflict: "user_id,date,prayer_name" }).then(() => {});
+    const nextLog = setPrayerStatus(prayerLog, today, prayerId as PrayerId, isCompleting);
+    setPrayerLog(nextLog);
+    savePrayerLog(nextLog);
+    writeLegacyToday(today, newCompleted as PrayerId[]);
+
+    syncPrayerStatus(user?.id, today, prayerId as PrayerId, isCompleting);
+  }, [todayData, setData, user, prayerLog]);
+
+  const todayLogKey = logTodayKey();
+  const streaksByPrayer = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const p of PRAYERS) {
+      out[p.id] = getPrayerStreak(prayerLog, p.id as PrayerId);
     }
-  }, [todayData, setData, user]);
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- todayLogKey is read inside getPrayerStreak; we want the recompute when the local-day key flips at midnight even though the linter can't see it
+  }, [prayerLog, todayLogKey]);
 
   const progress = todayData.completed.length / PRAYERS.length * 100;
 
@@ -155,13 +173,20 @@ export default function PrayerPage() {
   return (
     <div className="px-4 pt-5 pb-5" dir={isRTL ? "rtl" : "ltr"}>
       {/* Header */}
-      <div className="mb-4 flex items-center justify-between gap-2">
-        <h1 className="text-2xl font-bold heading-decorated shrink-0">{t("prayers_title")}</h1>
+      <div className="mb-4 flex items-center gap-2">
+        <motion.button
+          whileTap={{ scale: 0.9 }}
+          onClick={() => navigate("/")}
+          className="rounded-xl p-2 hover:bg-muted transition-colors flex-shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center"
+        >
+          {isRTL ? <ArrowRight className="h-5 w-5" /> : <ArrowLeft className="h-5 w-5" />}
+        </motion.button>
+        <h1 className="text-2xl font-bold heading-decorated flex-1 min-w-0">{t("prayers_title")}</h1>
         <div className="flex items-center gap-2">
           {cachedLocation?.city && (
             <button
               onClick={() => setCitySearchOpen(true)}
-              className="flex items-center gap-1 text-xs text-muted-foreground bg-card rounded-full px-2.5 py-1 border border-border/40 shadow-soft hover:border-primary/30 transition-colors"
+              className="flex items-center gap-1 text-xs text-muted-foreground glass-card rounded-full px-3 py-2.5 shadow-soft hover:border-primary/30 transition-colors min-h-[44px]"
             >
               <MapPin className="h-3 w-3 shrink-0" />
               <span className="truncate max-w-[80px]">{cachedLocation.city}</span>
@@ -170,14 +195,14 @@ export default function PrayerPage() {
           {!cachedLocation?.city && (
             <button
               onClick={() => setCitySearchOpen(true)}
-              className="flex items-center gap-1 text-xs text-muted-foreground bg-card rounded-full px-2.5 py-1 border border-border/40 shadow-soft hover:border-primary/30 transition-colors"
+              className="flex items-center gap-1 text-xs text-muted-foreground glass-card rounded-full px-3 py-2.5 shadow-soft hover:border-primary/30 transition-colors min-h-[44px] min-w-[44px]"
             >
               <Search className="h-3 w-3 shrink-0" />
             </button>
           )}
           <button
             onClick={() => setHistoryOpen(true)}
-            className="flex items-center gap-1 text-xs text-muted-foreground bg-card rounded-full px-2.5 py-1 border border-border/40 shadow-soft hover:border-primary/30 transition-colors"
+            className="flex items-center gap-1 text-xs text-muted-foreground glass-card rounded-full px-3 py-2.5 shadow-soft hover:border-primary/30 transition-colors min-h-[44px] min-w-[44px]"
           >
             <History className="h-3 w-3" />
           </button>
@@ -203,7 +228,7 @@ export default function PrayerPage() {
           initial={{ opacity: 0, scale: 0.96 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.05 }}
-          className="rounded-2xl bg-card border border-primary/15 shadow-elevated p-5 mb-3 relative overflow-hidden">
+          className="rounded-2xl glass-card border-primary/15 shadow-elevated p-5 mb-3 relative overflow-hidden">
 
           <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
 
@@ -212,7 +237,7 @@ export default function PrayerPage() {
               <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">{t("next_prayer")}</p>
               <div className="flex items-center gap-2 mt-0.5">
                 <span className="text-xl">{heroPrayer.icon}</span>
-                <span className="text-lg font-bold text-foreground">{t(heroPrayer.id as any)}</span>
+                <span className="text-lg font-bold text-foreground">{t(heroPrayer.id as Parameters<typeof t>[0])}</span>
               </div>
             </div>
             {streak > 0 && (
@@ -250,13 +275,12 @@ export default function PrayerPage() {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.08 }}
-        className="rounded-2xl bg-card border border-border/40 shadow-soft px-4 py-3 mb-3">
+        className="rounded-2xl glass-card border-border/40 shadow-soft px-4 py-3 mb-3">
         <div className="mb-2 flex items-center justify-between">
           <span className="text-xs text-muted-foreground font-medium">
-            {language === "ar"
-              ? toArabicNumerals(`${todayData.completed.length}/${PRAYERS.length}`)
-              : `${todayData.completed.length}/${PRAYERS.length}`}
-            {" "}{t("complete_prayers")}
+            {t("prayers_completion_summary")
+              .replace("{done}", language === "ar" ? toArabicNumerals(todayData.completed.length) : String(todayData.completed.length))
+              .replace("{total}", language === "ar" ? toArabicNumerals(PRAYERS.length) : String(PRAYERS.length))}
           </span>
           <span className="text-xs font-bold text-primary">{Math.round(progress)}%</span>
         </div>
@@ -271,8 +295,8 @@ export default function PrayerPage() {
         whileTap={{ scale: 0.97 }}
         onClick={() => navigate("/qibla")}
         className={cn(
-          "w-full rounded-2xl bg-card border border-gold/25 shadow-soft flex items-center gap-3 px-4 py-3 mb-4 gradient-gold-card hover-lift",
-          isRTL ? "text-right" : "text-left"
+          "w-full rounded-2xl glass-card border-gold/25 shadow-soft flex items-center gap-3 px-4 py-3 mb-4 gradient-gold-card hover-lift",
+          isRTL ? "text-end" : "text-start"
         )}>
         <div className="rounded-xl bg-gold/15 border border-gold/20 p-2.5 shrink-0">
           <Compass className="h-5 w-5 text-gold" />
@@ -280,6 +304,28 @@ export default function PrayerPage() {
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold text-foreground">{t("qibla_banner")}</p>
           <p className="text-xs text-muted-foreground">{t("qibla_subtitle")}</p>
+        </div>
+        <ChevronLeft className={cn("h-4 w-4 text-muted-foreground shrink-0", !isRTL && "rotate-180")} />
+      </motion.button>
+
+      <motion.button
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.11 }}
+        whileTap={{ scale: 0.97 }}
+        onClick={() => navigate("/friday")}
+        data-testid="prayer-friday-mode-button"
+        className={cn(
+          "w-full rounded-2xl glass-card border-primary/20 shadow-soft flex items-center gap-3 px-4 py-3 mb-4 hover-lift",
+          isRTL ? "text-end" : "text-start"
+        )}
+      >
+        <div className="rounded-xl bg-primary/10 border border-primary/20 p-2.5 shrink-0">
+          <Sparkles className="h-5 w-5 text-primary" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-bold text-foreground">{language === "ar" ? "وضع الجمعة" : "Friday Mode"}</p>
+          <p className="text-xs text-muted-foreground">{language === "ar" ? "سورة الكهف، تذكير الجمعة، وعدّاد الصلاة على النبي ﷺ" : "Al-Kahf shortcut, Friday reminder, and salawat counter."}</p>
         </div>
         <ChevronLeft className={cn("h-4 w-4 text-muted-foreground shrink-0", !isRTL && "rotate-180")} />
       </motion.button>
@@ -304,10 +350,10 @@ export default function PrayerPage() {
               className={cn(
                 "flex w-full items-center gap-3.5 rounded-2xl px-4 py-3.5 transition-all border relative overflow-hidden",
                 done
-                  ? "bg-primary/8 border-primary/20 shadow-soft"
+                  ? "glass-card bg-primary/8 border-primary/20 shadow-soft"
                   : isNext
-                  ? "bg-card border-primary/30 shadow-elevated ring-1 ring-primary/20"
-                  : "bg-card border-border/40 shadow-soft"
+                  ? "glass-card border-primary/30 shadow-elevated ring-1 ring-primary/20"
+                  : "glass-card border-border/40 shadow-soft"
               )}>
               {isNext && !done && (
                 <motion.div
@@ -328,13 +374,34 @@ export default function PrayerPage() {
                 }
               </div>
 
-              <div className={cn("flex-1 min-w-0", isRTL ? "text-right" : "text-left")}>
-                <p className={cn(
-                  "font-bold text-sm",
-                  done ? "line-through text-muted-foreground" : isNext ? "text-primary" : "text-foreground"
-                )}>
-                  {t(prayer.id as any)}
-                </p>
+              <div className={cn("flex-1 min-w-0", isRTL ? "text-end" : "text-start")}>
+                <div className={cn("flex items-center gap-2", isRTL ? "justify-start flex-row-reverse" : "")}>
+                  <p className={cn(
+                    "font-bold text-sm",
+                    done ? "line-through text-muted-foreground" : isNext ? "text-primary" : "text-foreground"
+                  )}>
+                    {t(prayer.id as Parameters<typeof t>[0])}
+                  </p>
+                  {(() => {
+                    const v = streaksByPrayer[prayer.id] ?? 0;
+                    const active = v > 0;
+                    const label = `${language === "ar" ? toArabicNumerals(String(v)) : v} ${t("prayer_streak_days")}`;
+                    return (
+                      <span
+                        className={cn(
+                          "inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none border",
+                          active
+                            ? "bg-accent/12 border-accent/25 text-accent"
+                            : "bg-muted/40 border-border/40 text-muted-foreground/70"
+                        )}
+                        aria-label={`${t(prayer.id as Parameters<typeof t>[0])}: ${label}`}
+                      >
+                        {active && <Flame className="h-2.5 w-2.5" />}
+                        {label}
+                      </span>
+                    );
+                  })()}
+                </div>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {formatLocalizedTime(time, language)}
                 </p>

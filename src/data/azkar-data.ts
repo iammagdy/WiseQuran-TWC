@@ -33,7 +33,7 @@ export const azkarSections: AzkarSection[] = [
     id: "prayer",
     nameAr: "أذكار الصلاة",
     name: "Prayer",
-    categoryIds: ["adhan", "after-adhan", "going-mosque", "entering-mosque", "leaving-mosque", "opening-prayer", "ruku", "sujood", "tashahhud", "after-prayer", "witr-qunut", "istikharah", "friday"],
+    categoryIds: ["adhan", "after-adhan", "going-mosque", "entering-mosque", "leaving-mosque", "opening-prayer", "ruku", "sujood", "tashahhud", "after-prayer", "witr-qunut", "qunut-nazilah", "istikharah", "friday"],
   },
   {
     id: "eating",
@@ -57,7 +57,7 @@ export const azkarSections: AzkarSection[] = [
     id: "hardship",
     nameAr: "الشدة والمرض",
     name: "Hardship & Illness",
-    categoryIds: ["distress", "anxiety", "debt", "facing-enemy", "ruqyah", "hasad", "sickness-self", "sickness-other", "closing-eyes-deceased", "funeral", "burial", "grave-visit"],
+    categoryIds: ["distress", "anxiety", "debt", "facing-enemy", "ruqyah", "hasad", "bad-dream", "sickness-self", "sickness-other", "closing-eyes-deceased", "funeral", "burial", "grave-visit"],
   },
   {
     id: "weather",
@@ -109,6 +109,11 @@ export const azkarData: AzkarCategory[] = [
       { id: "m16", text: "لَا إِلَهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ، لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ وَهُوَ عَلَى كُلِّ شَيْءٍ قَدِيرٌ", translation: "None has the right to be worshipped but Allah alone, with no partner. His is the dominion and His is the praise, and He is Able to do all things.", count: 10, source: "رواه البخاري" },
       { id: "m17", text: "حَسْبِيَ اللَّهُ لَا إِلَهَ إِلَّا هُوَ عَلَيْهِ تَوَكَّلْتُ وَهُوَ رَبُّ الْعَرْشِ الْعَظِيمِ", translation: "Allah is sufficient for me. None has the right to be worshipped but Him. Upon Him I rely and He is Lord of the Majestic Throne.", count: 7, source: "رواه أبو داود" },
       { id: "m18", text: "اللَّهُمَّ إِنِّي أَسْأَلُكَ عِلْمًا نَافِعًا، وَرِزْقًا طَيِّبًا، وَعَمَلًا مُتَقَبَّلًا", translation: "O Allah, I ask You for beneficial knowledge, pure provision, and accepted deeds.", count: 1, source: "رواه ابن ماجه" },
+      { id: "m19", text: "أَعُوذُ بِكَلِمَاتِ اللَّهِ التَّامَّاتِ مِنْ شَرِّ مَا خَلَقَ", translation: "I seek refuge in the perfect words of Allah from the evil of what He has created.", count: 3, source: "رواه مسلم" },
+      { id: "m20", text: "اللَّهُمَّ صَلِّ وَسَلِّمْ عَلَى نَبِيِّنَا مُحَمَّدٍ", translation: "O Allah, send blessings and peace upon our Prophet Muhammad.", count: 10, source: "رواه الطبراني" },
+      { id: "m21", text: "سُبْحَانَ اللَّهِ وَبِحَمْدِهِ: عَدَدَ خَلْقِهِ، وَرِضَا نَفْسِهِ، وَزِنَةَ عَرْشِهِ، وَمِدَادَ كَلِمَاتِهِ", translation: "Glory is to Allah and praise is to Him: by the number of His creation, by the extent of His pleasure, by the weight of His Throne, and by the ink of His words.", count: 3, source: "رواه مسلم" },
+      { id: "m22", text: "لَا إِلَهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ، لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ، وَهُوَ عَلَى كُلِّ شَيْءٍ قَدِيرٌ", translation: "None has the right to be worshipped but Allah alone, with no partner. His is the dominion and His is the praise, and He is Able to do all things.", count: 100, source: "رواه البخاري ومسلم" },
+      { id: "m23", text: "أَسْتَغْفِرُ اللَّهَ وَأَتُوبُ إِلَيْهِ", translation: "I seek the forgiveness of Allah and repent to Him.", count: 100, source: "رواه البخاري ومسلم" },
     ],
   },
   {
@@ -133,6 +138,10 @@ export const azkarData: AzkarCategory[] = [
       { id: "e14", text: "لَا إِلَهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ، لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ وَهُوَ عَلَى كُلِّ شَيْءٍ قَدِيرٌ", translation: "None has the right to be worshipped but Allah alone, with no partner. His is the dominion and His is the praise, and He is Able to do all things.", count: 10, source: "رواه البخاري" },
       { id: "e15", text: "حَسْبِيَ اللَّهُ لَا إِلَهَ إِلَّا هُوَ عَلَيْهِ تَوَكَّلْتُ وَهُوَ رَبُّ الْعَرْشِ الْعَظِيمِ", translation: "Allah is sufficient for me. None has the right to be worshipped but Him. Upon Him I rely and He is Lord of the Majestic Throne.", count: 7, source: "رواه أبو داود" },
       { id: "e16", text: "اللَّهُمَّ صَلِّ وَسَلِّمْ عَلَى نَبِيِّنَا مُحَمَّدٍ", translation: "O Allah, send blessings and peace upon our Prophet Muhammad.", count: 10, source: "رواه الطبراني" },
+      { id: "e17", text: "اللَّهُمَّ عَالِمَ الْغَيْبِ وَالشَّهَادَةِ، فَاطِرَ السَّمَوَاتِ وَالْأَرْضِ، رَبَّ كُلِّ شَيْءٍ وَمَلِيكَهُ، أَشْهَدُ أَنْ لَا إِلَهَ إِلَّا أَنْتَ، أَعُوذُ بِكَ مِنْ شَرِّ نَفْسِي، وَمِنْ شَرِّ الشَّيْطَانِ وَشِرْكِهِ، وَأَنْ أَقْتَرِفَ عَلَى نَفْسِي سُوءًا أَوْ أَجُرَّهُ إِلَى مُسْلِمٍ", translation: "O Allah, Knower of the unseen and the seen, Creator of the heavens and the earth, Lord and Sovereign of all things, I bear witness that none has the right to be worshipped but You. I seek refuge in You from the evil of my own soul, from the evil and polytheism of Satan, and from bringing evil upon my soul or harming any Muslim.", count: 1, source: "رواه أبو داود والترمذي" },
+      { id: "e18", text: "أَمْسَيْنَا عَلَى فِطْرَةِ الْإِسْلَامِ، وَعَلَى كَلِمَةِ الْإِخْلَاصِ، وَعَلَى دِينِ نَبِيِّنَا مُحَمَّدٍ، وَعَلَى مِلَّةِ أَبِينَا إِبْرَاهِيمَ حَنِيفًا مُسْلِمًا وَمَا كَانَ مِنَ الْمُشْرِكِينَ", translation: "We have entered the evening upon the natural religion of Islam, upon the word of sincerity, upon the religion of our Prophet Muhammad, and upon the way of our father Ibrahim, who was upright and Muslim, and was not of the polytheists.", count: 1, source: "رواه أحمد" },
+      { id: "e19", text: "اللَّهُمَّ إِنِّي أَسْأَلُكَ مِنْ خَيْرِ هَذِهِ اللَّيْلَةِ وَخَيْرِ مَا بَعْدَهَا، وَأَعُوذُ بِكَ مِنْ شَرِّ هَذِهِ اللَّيْلَةِ وَشَرِّ مَا بَعْدَهَا", translation: "O Allah, I ask You for the good of this night and the good that follows it, and I seek refuge in You from the evil of this night and the evil that follows it.", count: 1, source: "رواه مسلم" },
+      { id: "e20", text: "أَسْتَغْفِرُ اللَّهَ وَأَتُوبُ إِلَيْهِ", translation: "I seek the forgiveness of Allah and repent to Him.", count: 100, source: "رواه البخاري ومسلم" },
     ],
   },
   {
@@ -151,6 +160,9 @@ export const azkarData: AzkarCategory[] = [
       { id: "s8", text: "اللَّهُ لَا إِلَهَ إِلَّا هُوَ الْحَيُّ الْقَيُّومُ لَا تَأْخُذُهُ سِنَةٌ وَلَا نَوْمٌ...", translation: "Ayat Al-Kursi — Allah, there is no god but He, the Ever-Living, the Sustainer of existence. Neither drowsiness nor sleep overtakes Him... (Surah Al-Baqarah 2:255)", count: 1, source: "رواه البخاري" },
       { id: "s9", text: "قُلْ هُوَ اللَّهُ أَحَدٌ ۝ اللَّهُ الصَّمَدُ ۝ لَمْ يَلِدْ وَلَمْ يُولَدْ ۝ وَلَمْ يَكُن لَّهُ كُفُوًا أَحَدٌ", translation: "Surah Al-Ikhlas — Say: He is Allah, the One. Allah, the Eternal Refuge. He neither begets nor is born, nor is there to Him any equivalent. (Recite also Al-Falaq and An-Nas)", count: 3, source: "رواه البخاري" },
       { id: "s10", text: "اللَّهُمَّ إِنَّكَ خَلَقْتَ نَفْسِي وَأَنْتَ تَوَفَّاهَا، لَكَ مَمَاتُهَا وَمَحْيَاهَا، إِنْ أَحْيَيْتَهَا فَاحْفَظْهَا، وَإِنْ أَمَتَّهَا فَاغْفِرْ لَهَا. اللَّهُمَّ إِنِّي أَسْأَلُكَ الْعَافِيَةَ", translation: "O Allah, You created my soul and You will take it in death. Yours is its death and its life. If You keep it alive, protect it, and if You cause it to die, forgive it. O Allah, I ask You for well-being.", count: 1, source: "رواه مسلم" },
+      { id: "s11", text: "الْحَمْدُ لِلَّهِ الَّذِي أَطْعَمَنَا وَسَقَانَا وَكَفَانَا وَآوَانَا، فَكَمْ مِمَّنْ لَا كَافِيَ لَهُ وَلَا مُؤْوِيَ", translation: "Praise is to Allah who has fed us and given us drink, sufficed us and sheltered us. How many there are who have none to suffice them and none to shelter them.", count: 1, source: "رواه مسلم" },
+      { id: "s12", text: "اللَّهُمَّ رَبَّ السَّمَاوَاتِ السَّبْعِ وَرَبَّ الْعَرْشِ الْعَظِيمِ، رَبَّنَا وَرَبَّ كُلِّ شَيْءٍ... أَعُوذُ بِكَ مِنْ شَرِّ كُلِّ شَيْءٍ أَنْتَ آخِذٌ بِنَاصِيَتِهِ. أَنْتَ الْأَوَّلُ فَلَيْسَ قَبْلَكَ شَيْءٌ، وَأَنْتَ الْآخِرُ فَلَيْسَ بَعْدَكَ شَيْءٌ، وَأَنْتَ الظَّاهِرُ فَلَيْسَ فَوْقَكَ شَيْءٌ، وَأَنْتَ الْبَاطِنُ فَلَيْسَ دُونَكَ شَيْءٌ، اقْضِ عَنِّي الدَّيْنَ وَأَغْنِنِي مِنَ الْفَقْرِ", translation: "O Allah, Lord of the seven heavens and Lord of the Magnificent Throne, our Lord and the Lord of all things... I seek refuge in You from the evil of every creature You hold by its forelock. You are the First, nothing is before You; the Last, nothing is after You; the Manifest, nothing is above You; the Hidden, nothing is beyond You. Settle my debt for me and free me from poverty.", count: 1, source: "رواه مسلم" },
+      { id: "s13", text: "بِسْمِ اللَّهِ وَضَعْتُ جَنْبِي، اللَّهُمَّ اغْفِرْ لِي ذَنْبِي، وَأَخْسِئْ شَيْطَانِي، وَفُكَّ رِهَانِي، وَاجْعَلْنِي فِي النَّدِيِّ الْأَعْلَى", translation: "In the Name of Allah I lay down my side. O Allah, forgive my sins, drive away my devil, release me from my bond, and place me in the highest assembly.", count: 1, source: "رواه أبو داود" },
     ],
   },
   {
@@ -325,6 +337,9 @@ export const azkarData: AzkarCategory[] = [
       { id: "p6", text: "اللَّهُ أَكْبَرُ", translation: "Allah is the Greatest.", count: 34, source: "رواه مسلم" },
       { id: "p7", text: "اللَّهُ لَا إِلَهَ إِلَّا هُوَ الْحَيُّ الْقَيُّومُ...", translation: "Ayat Al-Kursi — Allah, there is no god but He, the Ever-Living, the Sustainer of existence... (Recite Surah Al-Baqarah 2:255)", count: 1, source: "رواه النسائي" },
       { id: "p8", text: "اللَّهُمَّ إِنِّي أَسْأَلُكَ عِلْمًا نَافِعًا وَرِزْقًا طَيِّبًا وَعَمَلًا مُتَقَبَّلًا", translation: "O Allah, I ask You for beneficial knowledge, pure provision, and accepted deeds. (After Fajr prayer)", count: 1, source: "رواه ابن ماجه" },
+      { id: "p9", text: "اللَّهُمَّ أَعِنِّي عَلَى ذِكْرِكَ وَشُكْرِكَ وَحُسْنِ عِبَادَتِكَ", translation: "O Allah, help me to remember You, to thank You, and to worship You in the best way.", count: 1, source: "رواه أبو داود والنسائي" },
+      { id: "p10", text: "قُلْ هُوَ اللَّهُ أَحَدٌ... وَقُلْ أَعُوذُ بِرَبِّ الْفَلَقِ... وَقُلْ أَعُوذُ بِرَبِّ النَّاسِ", translation: "Recite Surah Al-Ikhlas, Al-Falaq, and An-Nas after each prayer.", count: 1, source: "رواه أبو داود والترمذي" },
+      { id: "p11", text: "لَا إِلَهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ، لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ وَهُوَ عَلَى كُلِّ شَيْءٍ قَدِيرٌ، لَا حَوْلَ وَلَا قُوَّةَ إِلَّا بِاللَّهِ، لَا إِلَهَ إِلَّا اللَّهُ، وَلَا نَعْبُدُ إِلَّا إِيَّاهُ، لَهُ النِّعْمَةُ وَلَهُ الْفَضْلُ وَلَهُ الثَّنَاءُ الْحَسَنُ، لَا إِلَهَ إِلَّا اللَّهُ مُخْلِصِينَ لَهُ الدِّينَ وَلَوْ كَرِهَ الْكَافِرُونَ", translation: "None has the right to be worshipped but Allah alone, with no partner. His is the dominion and His is the praise, and He is over all things omnipotent. There is no might and no power except with Allah. None has the right to be worshipped but Allah, and we worship none but Him. His is the favor, the bounty and the beautiful praise. None has the right to be worshipped but Allah, sincerely devoted to Him, even though the disbelievers detest it.", count: 1, source: "رواه مسلم" },
     ],
   },
   {
@@ -334,6 +349,17 @@ export const azkarData: AzkarCategory[] = [
     sectionId: "prayer",
     items: [
       { id: "wq1", text: "اللَّهُمَّ اهْدِنِي فِيمَنْ هَدَيْتَ، وَعَافِنِي فِيمَنْ عَافَيْتَ، وَتَوَلَّنِي فِيمَنْ تَوَلَّيْتَ، وَبَارِكْ لِي فِيمَا أَعْطَيْتَ، وَقِنِي شَرَّ مَا قَضَيْتَ، فَإِنَّكَ تَقْضِي وَلَا يُقْضَى عَلَيْكَ، وَإِنَّهُ لَا يَذِلُّ مَنْ وَالَيْتَ، تَبَارَكْتَ رَبَّنَا وَتَعَالَيْتَ", translation: "O Allah, guide me among those whom You have guided, pardon me among those whom You have pardoned, befriend me among those whom You have befriended, bless me in what You have given, and save me from the evil of what You have decreed. Indeed You decree and none can decree against You. Verily, the one whom You support cannot be disgraced. Blessed and Exalted are You, our Lord.", count: 1, source: "رواه أبو داود والترمذي" },
+    ],
+  },
+  {
+    id: "qunut-nazilah",
+    name: "Qunut an-Nazilah",
+    nameAr: "دعاء القنوت في النوازل",
+    sectionId: "prayer",
+    items: [
+      { id: "qn1", text: "اللَّهُمَّ أَنْجِ الْمُسْتَضْعَفِينَ مِنَ الْمُؤْمِنِينَ، اللَّهُمَّ اشْدُدْ وَطْأَتَكَ عَلَى مَنْ ظَلَمَ الْمُسْلِمِينَ، اللَّهُمَّ اجْعَلْهَا عَلَيْهِمْ سِنِينَ كَسِنِي يُوسُفَ", translation: "O Allah, save the oppressed among the believers. O Allah, tighten Your grip upon those who wrong the Muslims. O Allah, make their days like the years of Joseph (famine and hardship).", count: 1, source: "رواه البخاري ومسلم" },
+      { id: "qn2", text: "اللَّهُمَّ الْعَنِ الظَّالِمِينَ، وَانْصُرْ إِخْوَانَنَا الْمُسْتَضْعَفِينَ فِي كُلِّ مَكَانٍ. اللَّهُمَّ فُرِّجْ كُرَبَهُمْ، وَاكْشِفْ ضُرَّهُمْ، وَارْحَمْ مَوْتَاهُمْ، وَاشْفِ مَرْضَاهُمْ", translation: "O Allah, curse the oppressors, and grant victory to our oppressed brothers everywhere. O Allah, relieve their distress, remove their hardship, have mercy on their dead, and heal their sick.", count: 1, source: "مأثور عن السلف في القنوت" },
+      { id: "qn3", text: "اللَّهُمَّ إِنَّا نَجْعَلُكَ فِي نُحُورِهِمْ، وَنَعُوذُ بِكَ مِنْ شُرُورِهِمْ", translation: "O Allah, we place You before them, and we seek refuge in You from their evils.", count: 1, source: "رواه أبو داود" },
     ],
   },
   {
@@ -667,6 +693,17 @@ export const azkarData: AzkarCategory[] = [
     ],
   },
   {
+    id: "bad-dream",
+    name: "After a Bad Dream",
+    nameAr: "ما يفعل من رأى رؤيا حسنة أو سيئة",
+    sectionId: "hardship",
+    items: [
+      { id: "bd1", text: "أَعُوذُ بِاللَّهِ مِنَ الشَّيْطَانِ الرَّجِيمِ، وَمِنْ شَرِّ مَا رَأَيْتُ", translation: "I seek refuge in Allah from the accursed Satan and from the evil of what I have seen. (Say three times, then spit lightly to your left and change sides)", count: 3, source: "رواه مسلم" },
+      { id: "bd2", text: "اللَّهُمَّ إِنِّي أَعُوذُ بِكَ مِنْ عَمَلِ الشَّيْطَانِ وَسَيِّئَاتِ الْأَحْلَامِ", translation: "O Allah, I seek refuge in You from the work of Satan and from evil dreams.", count: 1, source: "رواه الترمذي" },
+      { id: "bd3", text: "الْحَمْدُ لِلَّهِ الَّذِي عَافَانِي مِمَّا ابْتَلَى بِهِ غَيْرِي وَفَضَّلَنِي عَلَى كَثِيرٍ مِمَّنْ خَلَقَ تَفْضِيلًا", translation: "Praise be to Allah who has spared me what He has afflicted others with, and favored me over many of those He has created.", count: 1, source: "رواه الترمذي" },
+    ],
+  },
+  {
     id: "sickness-self",
     name: "When Ill Yourself",
     nameAr: "دعاء المريض عن نفسه",
@@ -788,6 +825,10 @@ export const azkarData: AzkarCategory[] = [
       { id: "g4", text: "اللَّهُمَّ صَلِّ وَسَلِّمْ عَلَى نَبِيِّنَا مُحَمَّدٍ", translation: "O Allah, send blessings and peace upon our Prophet Muhammad.", count: 10, source: "رواه الطبراني" },
       { id: "g5", text: "رَبِّ اغْفِرْ لِي وَتُبْ عَلَيَّ إِنَّكَ أَنْتَ التَّوَّابُ الرَّحِيمُ", translation: "My Lord, forgive me and accept my repentance. You are the Accepter of Repentance, the Most Merciful.", count: 100, source: "رواه أبو داود والترمذي" },
       { id: "g6", text: "اللَّهُمَّ أَعِنِّي عَلَى ذِكْرِكَ وَشُكْرِكَ وَحُسْنِ عِبَادَتِكَ", translation: "O Allah, help me to remember You, to thank You, and to worship You in the best way.", count: 3, source: "رواه أبو داود" },
+      { id: "g7", text: "سُبْحَانَ اللَّهِ وَبِحَمْدِهِ، عَدَدَ خَلْقِهِ، وَرِضَا نَفْسِهِ، وَزِنَةَ عَرْشِهِ، وَمِدَادَ كَلِمَاتِهِ", translation: "Glory is to Allah and praise is to Him: by the number of His creation, by the extent of His pleasure, by the weight of His Throne, and by the ink of His words.", count: 3, source: "رواه مسلم" },
+      { id: "g8", text: "لَا إِلَهَ إِلَّا أَنْتَ سُبْحَانَكَ إِنِّي كُنْتُ مِنَ الظَّالِمِينَ", translation: "None has the right to be worshipped but You. Glory is to You. Indeed, I was among the wrongdoers. (Du'a Dhun-Nun)", count: 1, source: "رواه الترمذي" },
+      { id: "g9", text: "حَسْبُنَا اللَّهُ وَنِعْمَ الْوَكِيلُ", translation: "Allah is sufficient for us, and the best Disposer of affairs.", count: 1, source: "رواه البخاري" },
+      { id: "g10", text: "اللَّهُمَّ لَكَ الْحَمْدُ كُلُّهُ، وَلَكَ الْمُلْكُ كُلُّهُ، وَبِيَدِكَ الْخَيْرُ كُلُّهُ، وَإِلَيْكَ يُرْجَعُ الْأَمْرُ كُلُّهُ", translation: "O Allah, to You belongs all praise, to You belongs all dominion, in Your Hand is all good, and to You all affairs return.", count: 1, source: "رواه الطبراني في الدعاء" },
     ],
   },
   {
@@ -799,6 +840,10 @@ export const azkarData: AzkarCategory[] = [
       { id: "ig1", text: "أَسْتَغْفِرُ اللَّهَ وَأَتُوبُ إِلَيْهِ", translation: "I seek the forgiveness of Allah and repent to Him.", count: 100, source: "رواه البخاري ومسلم" },
       { id: "ig2", text: "أَسْتَغْفِرُ اللَّهَ الْعَظِيمَ الَّذِي لَا إِلَهَ إِلَّا هُوَ الْحَيُّ الْقَيُّومُ وَأَتُوبُ إِلَيْهِ", translation: "I seek the forgiveness of Allah the Almighty, besides Whom there is no god, the Ever-Living, the Eternal Sustainer, and I repent to Him.", count: 3, source: "رواه أبو داود والترمذي" },
       { id: "ig3", text: "اللَّهُمَّ أَنْتَ رَبِّي لَا إِلَهَ إِلَّا أَنْتَ خَلَقْتَنِي وَأَنَا عَبْدُكَ وَأَنَا عَلَى عَهْدِكَ وَوَعْدِكَ مَا اسْتَطَعْتُ أَعُوذُ بِكَ مِنْ شَرِّ مَا صَنَعْتُ أَبُوءُ لَكَ بِنِعْمَتِكَ عَلَيَّ وَأَبُوءُ بِذَنْبِي فَاغْفِرْ لِي فَإِنَّهُ لَا يَغْفِرُ الذُّنُوبَ إِلَّا أَنْتَ", translation: "O Allah, You are my Lord, none has the right to be worshipped but You. You created me and I am Your servant, and I abide to Your covenant and promise as best I can. I seek refuge in You from the evil of what I have done. I acknowledge Your blessing upon me, and I acknowledge my sin, so forgive me, for none forgives sins but You. (Sayyid al-Istighfar)", count: 1, source: "رواه البخاري" },
+      { id: "ig4", text: "رَبِّ اغْفِرْ لِي وَتُبْ عَلَيَّ إِنَّكَ أَنْتَ التَّوَّابُ الرَّحِيمُ", translation: "My Lord, forgive me and accept my repentance. You are the Accepter of Repentance, the Most Merciful.", count: 100, source: "رواه أبو داود والترمذي" },
+      { id: "ig5", text: "اللَّهُمَّ إِنِّي ظَلَمْتُ نَفْسِي ظُلْمًا كَثِيرًا وَلَا يَغْفِرُ الذُّنُوبَ إِلَّا أَنْتَ، فَاغْفِرْ لِي مَغْفِرَةً مِنْ عِنْدِكَ وَارْحَمْنِي، إِنَّكَ أَنْتَ الْغَفُورُ الرَّحِيمُ", translation: "O Allah, I have wronged my soul greatly, and none forgives sins except You. So forgive me with a forgiveness from You, and have mercy on me. Truly You are the Forgiving, the Most Merciful.", count: 1, source: "رواه البخاري ومسلم" },
+      { id: "ig6", text: "اللَّهُمَّ اغْفِرْ لِي ذَنْبِي كُلَّهُ، دِقَّهُ وَجِلَّهُ، وَأَوَّلَهُ وَآخِرَهُ، وَعَلَانِيَتَهُ وَسِرَّهُ", translation: "O Allah, forgive me all of my sins — the small and the great, the first and the last, the open and the secret.", count: 1, source: "رواه مسلم" },
+      { id: "ig7", text: "سُبْحَانَ اللَّهِ وَبِحَمْدِهِ، أَسْتَغْفِرُ اللَّهَ وَأَتُوبُ إِلَيْهِ", translation: "Glory is to Allah and praise is to Him. I seek the forgiveness of Allah and repent to Him.", count: 1, source: "رواه البخاري ومسلم" },
     ],
   },
   {
@@ -808,7 +853,10 @@ export const azkarData: AzkarCategory[] = [
     sectionId: "virtue",
     items: [
       { id: "sw1", text: "اللَّهُمَّ صَلِّ عَلَى مُحَمَّدٍ وَعَلَى آلِ مُحَمَّدٍ كَمَا صَلَّيْتَ عَلَى إِبْرَاهِيمَ وَعَلَى آلِ إِبْرَاهِيمَ إِنَّكَ حَمِيدٌ مَجِيدٌ، اللَّهُمَّ بَارِكْ عَلَى مُحَمَّدٍ وَعَلَى آلِ مُحَمَّدٍ كَمَا بَارَكْتَ عَلَى إِبْرَاهِيمَ وَعَلَى آلِ إِبْرَاهِيمَ إِنَّكَ حَمِيدٌ مَجِيدٌ", translation: "O Allah, send prayers upon Muhammad and the family of Muhammad, just as You sent prayers upon Ibrahim and the family of Ibrahim. Verily, You are full of praise and majesty. O Allah, send blessings upon Muhammad and the family of Muhammad, just as You sent blessings upon Ibrahim and the family of Ibrahim. Verily, You are full of praise and majesty.", count: 10, source: "رواه البخاري ومسلم" },
-      { id: "sw2", text: "اللَّهُمَّ صَلِّ عَلَى مُحَمَّدٍ النَّبِيِّ الأُمِّيِّ وَعَلَى آلِهِ وَصَحْبِهِ وَسَلِّمْ", translation: "O Allah, send blessings and peace upon Muhammad, the unlettered Prophet, and upon his family and companions.", count: 10 },
+      { id: "sw2", text: "اللَّهُمَّ صَلِّ عَلَى مُحَمَّدٍ النَّبِيِّ الأُمِّيِّ وَعَلَى آلِهِ وَصَحْبِهِ وَسَلِّمْ", translation: "O Allah, send blessings and peace upon Muhammad, the unlettered Prophet, and upon his family and companions.", count: 10, source: "صيغة مأثورة" },
+      { id: "sw3", text: "اللَّهُمَّ صَلِّ عَلَى مُحَمَّدٍ وَعَلَى آلِ مُحَمَّدٍ، وَبَارِكْ عَلَى مُحَمَّدٍ وَعَلَى آلِ مُحَمَّدٍ، كَمَا صَلَّيْتَ وَبَارَكْتَ عَلَى آلِ إِبْرَاهِيمَ فِي الْعَالَمِينَ، إِنَّكَ حَمِيدٌ مَجِيدٌ", translation: "O Allah, send prayers and blessings upon Muhammad and the family of Muhammad, as You sent prayers and blessings upon the family of Ibrahim in the worlds. Verily, You are the Praiseworthy, the Majestic.", count: 1, source: "رواه البخاري ومسلم" },
+      { id: "sw4", text: "صَلَّى اللَّهُ عَلَيْهِ وَسَلَّمَ", translation: "May Allah send blessings and peace upon him. (Brief salawat — say whenever the Prophet ﷺ is mentioned)", count: 1, source: "صيغة مأثورة عند ذكر النبي ﷺ" },
+      { id: "sw5", text: "اللَّهُمَّ صَلِّ وَسَلِّمْ وَبَارِكْ عَلَى نَبِيِّنَا مُحَمَّدٍ", translation: "O Allah, send prayers, peace and blessings upon our Prophet Muhammad.", count: 10, source: "رواه الطبراني" },
     ],
   },
   {
@@ -832,6 +880,11 @@ export const azkarData: AzkarCategory[] = [
       { id: "vd3", text: "اللَّهُمَّ إِنِّي أَسْأَلُكَ الْجَنَّةَ وَأَعُوذُ بِكَ مِنَ النَّارِ", translation: "O Allah, I ask You for Paradise and I seek refuge in You from the Fire.", count: 3, source: "رواه أبو داود" },
       { id: "vd4", text: "اللَّهُمَّ أَصْلِحْ لِي دِينِيَ الَّذِي هُوَ عِصْمَةُ أَمْرِي وَأَصْلِحْ لِي دُنْيَايَ الَّتِي فِيهَا مَعَاشِي وَأَصْلِحْ لِي آخِرَتِيَ الَّتِي فِيهَا مَعَادِي وَاجْعَلِ الْحَيَاةَ زِيَادَةً لِي فِي كُلِّ خَيْرٍ وَاجْعَلِ الْمَوْتَ رَاحَةً لِي مِنْ كُلِّ شَرٍّ", translation: "O Allah, set right for me my religion which is the safeguard of my affairs. And set right for me the affairs of my world wherein is my living. And set right for me my Hereafter to which is my return. And make life for me an increase in every good and make death for me a relief from every evil.", count: 1, source: "رواه مسلم" },
       { id: "vd5", text: "اللَّهُمَّ إِنِّي أَعُوذُ بِرِضَاكَ مِنْ سَخَطِكَ وَبِمُعَافَاتِكَ مِنْ عُقُوبَتِكَ وَأَعُوذُ بِكَ مِنْكَ لَا أُحْصِي ثَنَاءً عَلَيْكَ أَنْتَ كَمَا أَثْنَيْتَ عَلَى نَفْسِكَ", translation: "O Allah, I seek refuge in Your pleasure from Your anger, and in Your pardon from Your punishment, and I seek refuge in You from You. I cannot count Your praises, You are as You have praised Yourself.", count: 1, source: "رواه مسلم" },
+      { id: "vd6", text: "رَبَّنَا لَا تُزِغْ قُلُوبَنَا بَعْدَ إِذْ هَدَيْتَنَا وَهَبْ لَنَا مِنْ لَدُنْكَ رَحْمَةً إِنَّكَ أَنْتَ الْوَهَّابُ", translation: "Our Lord, do not cause our hearts to deviate after You have guided us. And grant us from Yourself mercy. Indeed, You are the Bestower. (Al Imran 3:8)", count: 1, source: "القرآن: آل عمران ٨" },
+      { id: "vd7", text: "اللَّهُمَّ إِنِّي أَعُوذُ بِكَ مِنَ الْعَجْزِ وَالْكَسَلِ، وَالْجُبْنِ وَالْبُخْلِ، وَالْهَرَمِ، وَعَذَابِ الْقَبْرِ. اللَّهُمَّ آتِ نَفْسِي تَقْوَاهَا، وَزَكِّهَا أَنْتَ خَيْرُ مَنْ زَكَّاهَا، أَنْتَ وَلِيُّهَا وَمَوْلَاهَا", translation: "O Allah, I seek refuge in You from incapacity and laziness, from cowardice and miserliness, from old age, and from the punishment of the grave. O Allah, grant my soul piety and purify it — You are the best to purify it; You are its Guardian and Master.", count: 1, source: "رواه مسلم" },
+      { id: "vd8", text: "اللَّهُمَّ لَا سَهْلَ إِلَّا مَا جَعَلْتَهُ سَهْلًا، وَأَنْتَ تَجْعَلُ الْحَزْنَ إِذَا شِئْتَ سَهْلًا", translation: "O Allah, nothing is easy except what You make easy, and You make what is difficult easy if You wish.", count: 1, source: "رواه ابن حبان" },
+      { id: "vd9", text: "اللَّهُمَّ بِعِلْمِكَ الْغَيْبَ وَقُدْرَتِكَ عَلَى الْخَلْقِ أَحْيِنِي مَا عَلِمْتَ الْحَيَاةَ خَيْرًا لِي، وَتَوَفَّنِي إِذَا عَلِمْتَ الْوَفَاةَ خَيْرًا لِي", translation: "O Allah, by Your knowledge of the unseen and Your power over creation, keep me alive as long as You know life is better for me, and take my soul when You know death is better for me.", count: 1, source: "رواه النسائي والحاكم" },
+      { id: "vd10", text: "اللَّهُمَّ مُصَرِّفَ الْقُلُوبِ صَرِّفْ قُلُوبَنَا عَلَى طَاعَتِكَ", translation: "O Allah, Turner of hearts, turn our hearts towards Your obedience.", count: 1, source: "رواه مسلم" },
     ],
   },
   {

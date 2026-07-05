@@ -91,7 +91,7 @@ export function DailyWird() {
             navigate(`/surah/${portion.startSurah}?ayah=${portion.startAyah}`);
           }}
           className={cn(
-            `flex-1 rounded-xl p-3 ${isRTL ? "text-right" : "text-left"} transition-all`,
+            `flex-1 rounded-xl p-3 ${isRTL ? "text-end" : "text-start"} transition-all`,
             portion.isDone ?
             "bg-primary/10 border border-primary/20" :
             "bg-muted/50 hover:bg-muted"
