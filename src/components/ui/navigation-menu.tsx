@@ -108,7 +108,6 @@ const NavigationMenuIndicator = React.forwardRef<
 NavigationMenuIndicator.displayName = NavigationMenuPrimitive.Indicator.displayName;
 
 export {
-  // eslint-disable-next-line react-refresh/only-export-components -- shadcn convention: trigger style helper co-exports with menu primitives
   navigationMenuTriggerStyle,
   NavigationMenu,
   NavigationMenuList,

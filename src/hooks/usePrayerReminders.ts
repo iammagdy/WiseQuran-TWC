@@ -6,15 +6,10 @@ import {
   ADHAN_STORAGE_KEY,
   DEFAULT_ADHAN_SETTINGS,
   CHIME_URL,
-  REMINDER_SOUNDS,
   type AdhanSettings,
 } from "@/lib/adhan-settings";
-import { mobileAudioManager } from "@/lib/mobile-audio";
-import { showAppNotification } from "@/lib/notifications";
 
 const PRAYER_ORDER = ["fajr", "dhuhr", "asr", "maghrib", "isha"] as const;
-const FIRED_STORAGE_KEY = "wise-prayer-reminder-events";
-const MISSED_REMINDER_GRACE_MINUTES = 20;
 
 const PRAYER_NAMES_AR: Record<string, string> = {
   fajr: "الفجر",
@@ -40,32 +35,11 @@ function todayKey() {
   return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
 }
 
-function loadReminderEvents(day: string) {
-  try {
-    const raw = localStorage.getItem(FIRED_STORAGE_KEY);
-    if (!raw) return new Set<string>();
-    const parsed = JSON.parse(raw) as { day?: string; keys?: string[] };
-    if (parsed.day !== day) return new Set<string>();
-    return new Set(parsed.keys ?? []);
-  } catch {
-    return new Set<string>();
-  }
-}
-
-function saveReminderEvents(day: string, keys: Set<string>) {
-  localStorage.setItem(FIRED_STORAGE_KEY, JSON.stringify({ day, keys: Array.from(keys) }));
-}
-
-async function playReminderSound(soundId: string | undefined, vol: number) {
-  const id = soundId ?? "chime";
-  const sound = REMINDER_SOUNDS.find((s) => s.id === id);
-  const file = sound?.file ?? CHIME_URL;
-  if (!file) return;
-  mobileAudioManager.play("alarm", file, {
-    volume: Math.max(0, Math.min(1, vol / 100)),
-    resetTime: true,
-  }).catch((err) => {
-    console.error("[Adhan] Failed to play reminder sound:", err);
+function playChime(vol: number) {
+  const audio = new Audio(CHIME_URL);
+  audio.volume = Math.max(0, Math.min(1, vol / 100));
+  audio.play().catch((err) => {
+    console.error("[Adhan] Failed to play chime:", err);
   });
 }
 
@@ -73,7 +47,7 @@ export function usePrayerReminders() {
   const [settings] = useLocalStorage<AdhanSettings>(ADHAN_STORAGE_KEY, DEFAULT_ADHAN_SETTINGS);
   const [notificationsEnabled] = useLocalStorage<boolean>("wise-prayer-notifications", false);
   const { location } = useLocation();
-  const firedRef = useRef<Set<string>>(loadReminderEvents(todayKey()));
+  const firedRef = useRef<Set<string>>(new Set());
   const lastDayRef = useRef(todayKey());
 
   useEffect(() => {
@@ -83,21 +57,12 @@ export function usePrayerReminders() {
     if (!notificationsEnabled) return;
     if (!("Notification" in window) || Notification.permission !== "granted") return;
 
-    const syncDay = (today: string) => {
-      if (today !== lastDayRef.current) {
-        lastDayRef.current = today;
-        firedRef.current = loadReminderEvents(today);
-      }
-    };
-
-    const markFired = (today: string, key: string) => {
-      firedRef.current.add(key);
-      saveReminderEvents(today, firedRef.current);
-    };
-
-    const check = (allowCatchUp: boolean) => {
+    const check = () => {
       const today = todayKey();
-      syncDay(today);
+      if (today !== lastDayRef.current) {
+        firedRef.current.clear();
+        lastDayRef.current = today;
+      }
 
       const now = new Date();
       const currentMinutes = now.getHours() * 60 + now.getMinutes();
@@ -119,17 +84,15 @@ export function usePrayerReminders() {
           const triggerMinutes = prayerMinutes - settings.preReminderMinutes;
           const preKey = `${today}-pre-${id}`;
           const preDiff = currentMinutes - triggerMinutes;
-          const shouldFire = preDiff >= 0 && preDiff < 2;
-          const shouldRecover = allowCatchUp && preDiff >= 2 && preDiff <= MISSED_REMINDER_GRACE_MINUTES;
-          if ((shouldFire || shouldRecover) && !firedRef.current.has(preKey)) {
-            markFired(today, preKey);
-            showAppNotification(`تذكير: صلاة ${PRAYER_NAMES_AR[id]}`, {
+          if (preDiff >= 0 && preDiff < 2 && !firedRef.current.has(preKey)) {
+            firedRef.current.add(preKey);
+            new Notification(`تذكير: صلاة ${PRAYER_NAMES_AR[id]}`, {
               body: `صلاة ${PRAYER_NAMES_AR[id]} بعد ${settings.preReminderMinutes} دقيقة`,
+              icon: "/icons/icon-192.png",
               dir: "rtl",
               lang: "ar",
-              tag: preKey,
             });
-            playReminderSound(settings.reminderSoundId, settings.reminderVolume);
+            playChime(settings.reminderVolume);
           }
         }
 
@@ -138,33 +101,22 @@ export function usePrayerReminders() {
           const postKey = `${today}-post-${id}`;
           const message = POST_REMINDER_MESSAGES[settings.postReminderContent] ?? POST_REMINDER_MESSAGES.simple;
           const postDiff = currentMinutes - triggerMinutes;
-          const shouldFire = postDiff >= 0 && postDiff < 2;
-          const shouldRecover = allowCatchUp && postDiff >= 2 && postDiff <= MISSED_REMINDER_GRACE_MINUTES;
-          if ((shouldFire || shouldRecover) && !firedRef.current.has(postKey)) {
-            markFired(today, postKey);
-            showAppNotification(`بعد صلاة ${PRAYER_NAMES_AR[id]}`, {
+          if (postDiff >= 0 && postDiff < 2 && !firedRef.current.has(postKey)) {
+            firedRef.current.add(postKey);
+            new Notification(`بعد صلاة ${PRAYER_NAMES_AR[id]}`, {
               body: message,
+              icon: "/icons/icon-192.png",
               dir: "rtl",
               lang: "ar",
-              tag: postKey,
             });
-            playReminderSound(settings.reminderSoundId, settings.reminderVolume);
+            playChime(settings.reminderVolume);
           }
         }
       }
     };
 
-    check(true);
-    const interval = setInterval(() => check(false), 15_000);
-    const onVisibilityChange = () => {
-      if (document.visibilityState === "visible") check(true);
-    };
-    window.addEventListener("focus", onVisibilityChange);
-    document.addEventListener("visibilitychange", onVisibilityChange);
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener("focus", onVisibilityChange);
-      document.removeEventListener("visibilitychange", onVisibilityChange);
-    };
+    check();
+    const interval = setInterval(check, 30_000);
+    return () => clearInterval(interval);
   }, [settings, notificationsEnabled, location]);
 }

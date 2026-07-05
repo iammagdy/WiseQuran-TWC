@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Search, MapPin, Navigation } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { searchCities, type City } from "@/data/cities";
 
@@ -50,7 +51,7 @@ export default function CitySearchModal({ open, onClose, onSelectCity, onUseGPS 
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: "100%" }}
             transition={{ type: "spring", stiffness: 350, damping: 30 }}
-            className="fixed bottom-0 start-0 end-0 z-50 rounded-t-3xl bg-card border-t border-border shadow-2xl max-h-[80vh] flex flex-col"
+            className="fixed bottom-0 left-0 right-0 z-50 rounded-t-3xl bg-card border-t border-border shadow-2xl max-h-[80vh] flex flex-col"
             dir={isRTL ? "rtl" : "ltr"}
           >
             <div className="w-10 h-1 bg-border rounded-full mx-auto mt-3 mb-1 shrink-0" />
@@ -76,7 +77,7 @@ export default function CitySearchModal({ open, onClose, onSelectCity, onUseGPS 
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder={isRTL ? "ابحث عن مدينة..." : "Search for a city..."}
-                  className={`w-full rounded-xl bg-muted border border-border px-4 py-2.5 text-sm outline-none focus:border-primary transition-colors ${isRTL ? "pe-10 text-end" : "ps-10"}`}
+                  className={`w-full rounded-xl bg-muted border border-border px-4 py-2.5 text-sm outline-none focus:border-primary transition-colors ${isRTL ? "pr-10 text-right" : "pl-10"}`}
                 />
               </div>
 
@@ -101,10 +102,10 @@ export default function CitySearchModal({ open, onClose, onSelectCity, onUseGPS 
                 <button
                   key={`${city.name}-${city.country}`}
                   onClick={() => handleSelect(city)}
-                  className="w-full flex items-center gap-3 rounded-xl px-3 py-3 hover:bg-muted transition-colors text-start"
+                  className="w-full flex items-center gap-3 rounded-xl px-3 py-3 hover:bg-muted transition-colors text-left"
                 >
                   <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <div className={isRTL ? "text-end" : "text-start"}>
+                  <div className={isRTL ? "text-right" : "text-left"}>
                     <p className="text-sm font-medium text-foreground">
                       {isRTL ? city.nameAr : city.name}
                     </p>

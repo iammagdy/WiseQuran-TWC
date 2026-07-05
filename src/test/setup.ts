@@ -1,5 +1,4 @@
 import "@testing-library/jest-dom";
-import "fake-indexeddb/auto";
 
 Object.defineProperty(window, "matchMedia", {
   writable: true,

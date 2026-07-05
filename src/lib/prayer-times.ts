@@ -8,6 +8,7 @@ import { toArabicNumerals } from "@/lib/utils";
 // Default coordinates (Cairo)
 const DEFAULT_LAT = 30.0444;
 const DEFAULT_LNG = 31.2357;
+const DEFAULT_TZ = 2;
 
 const DEG = Math.PI / 180;
 const RAD = 180 / Math.PI;
@@ -76,14 +77,10 @@ function toArabicTime(time24: string): string {
   return toArabicNumerals(`${h}:${mStr} ${period}`);
 }
 
-/**
- * Timezone offset in hours for a specific date. Uses the target date's
- * offset (not today's) so prayer times stay correct when computed for
- * a day on the other side of a DST transition — viewing tomorrow on
- * DST eve previously produced times shifted by one hour.
- */
-export function getTimezoneOffset(date: Date): number {
-  return -(date.getTimezoneOffset() / 60);
+// Get timezone offset for a location (simplified)
+function getTimezoneOffset(_lng: number): number {
+  // Use browser's actual timezone offset instead of guessing from longitude
+  return -(new Date().getTimezoneOffset() / 60);
 }
 
 export interface PrayerTimes {
@@ -116,7 +113,7 @@ export interface CalculationOptions {
 export function calculatePrayerTimes(date: Date, options: CalculationOptions = {}): PrayerTimes {
   const lat = options.latitude ?? DEFAULT_LAT;
   const lng = options.longitude ?? DEFAULT_LNG;
-  const tz = options.timezone ?? getTimezoneOffset(date);
+  const tz = options.timezone ?? getTimezoneOffset(lng);
   const method = options.method ?? "egyptian";
   const asrFactor = options.asrJuristic === "hanafi" ? 2 : 1;
   

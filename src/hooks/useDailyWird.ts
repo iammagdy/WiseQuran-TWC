@@ -1,8 +1,6 @@
 import { useLocalStorage } from "./useLocalStorage";
+import { juzData } from "@/data/juz-hizb-data";
 import { SURAH_META } from "@/data/surah-meta";
-import { useDeviceId } from "./useDeviceId";
-import { enqueuedSupabaseWrite } from "@/lib/syncQueue";
-import { isSupabaseConfigured } from "@/lib/supabase";
 
 export type WirdPlan = 30 | 60 | 90 | 180;
 
@@ -22,28 +20,9 @@ function daysBetween(a: string, b: string) {
 
 export function useDailyWird() {
   const [state, setState] = useLocalStorage<WirdState | null>("wise-daily-wird", null);
-  const deviceId = useDeviceId();
-
-  const syncWird = (wirdState: WirdState) => {
-    if (!isSupabaseConfigured) return;
-    enqueuedSupabaseWrite(
-      "device_daily_wird",
-      "upsert",
-      {
-        device_id: deviceId,
-        plan: wirdState.plan,
-        start_date: wirdState.startDate,
-        completed_days: wirdState.completedDays,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "device_id" }
-    );
-  };
 
   const startPlan = (plan: WirdPlan) => {
-    const newState: WirdState = { plan, startDate: getTodayKey(), completedDays: [] };
-    setState(newState);
-    syncWird(newState);
+    setState({ plan, startDate: getTodayKey(), completedDays: [] });
   };
 
   const resetPlan = () => setState(null);
@@ -51,10 +30,9 @@ export function useDailyWird() {
   const markTodayDone = () => {
     if (!state) return;
     const today = getTodayKey();
-    if (state.completedDays.includes(today)) return;
-    const newState: WirdState = { ...state, completedDays: [...state.completedDays, today] };
-    setState(newState);
-    syncWird(newState);
+    if (!state.completedDays.includes(today)) {
+      setState({ ...state, completedDays: [...state.completedDays, today] });
+    }
   };
 
   const getTodayPortion = () => {
@@ -71,6 +49,7 @@ export function useDailyWird() {
     // Convert global ayah index to surah/ayah
     let count = 0;
     let startSurah = 1, startAyah = 1, endSurah = 1, endAyah = 1;
+    let foundStart = false;
 
     for (const s of SURAH_META) {
       for (let a = 1; a <= s.numberOfAyahs; a++) {
@@ -78,6 +57,7 @@ export function useDailyWird() {
         if (count === startAyahGlobal) {
           startSurah = s.number;
           startAyah = a;
+          foundStart = true;
         }
         if (count === endAyahGlobal) {
           endSurah = s.number;
@@ -89,11 +69,10 @@ export function useDailyWird() {
             startAyah,
             endSurah,
             endAyah,
-            // ⚡ Bolt: O(1) direct indexing for performance
-            startSurahName: SURAH_META[startSurah - 1]?.name || "",
-            startSurahNameEn: SURAH_META[startSurah - 1]?.englishName || "",
-            endSurahName: SURAH_META[endSurah - 1]?.name || "",
-            endSurahNameEn: SURAH_META[endSurah - 1]?.englishName || "",
+            startSurahName: SURAH_META.find((ss) => ss.number === startSurah)?.name || "",
+            startSurahNameEn: SURAH_META.find((ss) => ss.number === startSurah)?.englishName || "",
+            endSurahName: SURAH_META.find((ss) => ss.number === endSurah)?.name || "",
+            endSurahNameEn: SURAH_META.find((ss) => ss.number === endSurah)?.englishName || "",
             isDone: state.completedDays.includes(today),
           };
         }

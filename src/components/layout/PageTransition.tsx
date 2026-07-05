@@ -1,13 +1,14 @@
 import { motion } from "framer-motion";
 import { useLocation } from "react-router-dom";
-import { ReactNode, forwardRef } from "react";
+import { ReactNode, useRef } from "react";
 
 const TAB_ORDER: Record<string, number> = {
   "/": 0,
   "/azkar": 1,
   "/prayer": 2,
   "/tasbeeh": 3,
-  "/settings": 4,
+  "/ramadan": 4,
+  "/settings": 5,
 };
 
 const DETAIL_ROUTES = ["/surah/", "/hifz/test", "/stats", "/qibla"];
@@ -54,42 +55,52 @@ const slideVariants = {
 
 const transition = {
   type: "spring" as const,
-  stiffness: 520,
-  damping: 42,
+  stiffness: 380,
+  damping: 38,
   mass: 0.8,
 };
 
-const PageTransition = forwardRef<HTMLDivElement, { children: ReactNode }>(
-  function PageTransition({ children }, ref) {
-    const location = useLocation();
-    const currentPath = location.pathname;
+export default function PageTransition({ children }: { children: ReactNode }) {
+  const location = useLocation();
+  const prevPathRef = useRef<string | null>(null);
+  const prevPath = prevPathRef.current;
+  const currentPath = location.pathname;
 
-    const currIdx = getTabIndex(currentPath);
-    const isDetail = isDetailPage(currentPath);
+  const prevIdx = prevPath ? getTabIndex(prevPath) : -1;
+  const currIdx = getTabIndex(currentPath);
+  const isDetail = isDetailPage(currentPath);
+  const wasDetail = prevPath ? isDetailPage(prevPath) : false;
 
-    let variant: keyof typeof slideVariants = "fade";
+  let variant: keyof typeof slideVariants;
 
-    if (isDetail) {
-      variant = "pushUp";
-    } else if (currIdx !== -1) {
-      variant = "enterFromRight";
-    }
-
-    const v = slideVariants[variant];
-
-    return (
-      <motion.div
-        ref={ref}
-        initial={v.initial}
-        animate={v.animate}
-        exit={v.exit}
-        transition={transition}
-        style={{ willChange: "transform, opacity" }}
-      >
-        {children}
-      </motion.div>
-    );
+  if (isDetail && !wasDetail) {
+    variant = "pushUp";
+  } else if (!isDetail && wasDetail) {
+    variant = "popDown";
+  } else if (prevIdx === -1 || currIdx === -1) {
+    variant = "fade";
+  } else if (currIdx > prevIdx) {
+    variant = "enterFromRight";
+  } else if (currIdx < prevIdx) {
+    variant = "enterFromLeft";
+  } else {
+    variant = "fade";
   }
-);
 
-export default PageTransition;
+  prevPathRef.current = currentPath;
+
+  const v = slideVariants[variant];
+
+  return (
+    <motion.div
+      key={location.key}
+      initial={v.initial}
+      animate={v.animate}
+      exit={v.exit}
+      transition={transition}
+      style={{ willChange: "transform, opacity" }}
+    >
+      {children}
+    </motion.div>
+  );
+}

@@ -3,15 +3,15 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const cardVariants = cva(
-  "rounded-xl border text-card-foreground transition-all duration-200",
+  "rounded-xl border bg-card text-card-foreground transition-all duration-200",
   {
     variants: {
       variant: {
-        default: "glass-card shadow-soft",
-        elevated: "glass-card shadow-elevated hover:shadow-elevated-lg hover:-translate-y-0.5",
-        gradient: "glass-card card-gradient shadow-elevated",
+        default: "shadow-soft",
+        elevated: "shadow-elevated hover:shadow-elevated-lg hover:-translate-y-0.5",
+        gradient: "card-gradient shadow-elevated",
         glass: "glass-card shadow-elevated",
-        bordered: "glass-card card-accent shadow-soft"
+        bordered: "card-accent shadow-soft"
       }
     },
     defaultVariants: {
@@ -68,5 +68,4 @@ const CardFooter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDiv
 );
 CardFooter.displayName = "CardFooter";
 
-// eslint-disable-next-line react-refresh/only-export-components -- shadcn convention: variant helpers co-export with component
 export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent, cardVariants };

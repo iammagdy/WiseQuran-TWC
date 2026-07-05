@@ -18,8 +18,7 @@ export default function SurahRangeSelector({ surahNumber, ayahFrom, ayahTo, onSu
   const [surahOpen, setSurahOpen] = useState(false);
   const [search, setSearch] = useState("");
 
-  // ⚡ Bolt: O(1) direct indexing
-  const meta = SURAH_META[surahNumber - 1];
+  const meta = SURAH_META.find((s) => s.number === surahNumber)!;
   const totalAyahs = meta.numberOfAyahs;
 
   const filtered = SURAH_META.filter((s) => {
@@ -33,7 +32,6 @@ export default function SurahRangeSelector({ surahNumber, ayahFrom, ayahTo, onSu
 
   useEffect(() => {
     onRangeChange(1, Math.min(10, totalAyahs));
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally only re-runs when surah changes; including `totalAyahs`/`onRangeChange` would clobber user-edited ranges
   }, [surahNumber]);
 
   const handleFrom = (val: number) => {

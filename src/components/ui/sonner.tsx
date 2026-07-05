@@ -24,5 +24,4 @@ const Toaster = ({ ...props }: ToasterProps) => {
   );
 };
 
-// eslint-disable-next-line react-refresh/only-export-components -- shadcn convention: toast helper co-exports with Toaster
 export { Toaster, toast };

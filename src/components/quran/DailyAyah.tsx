@@ -5,14 +5,10 @@ import { Sparkles, Share2, Volume2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
 import { getDailyAyahReference, getDailyAyahCacheKey, type DailyAyahRef } from "@/lib/daily-ayah";
-import { fetchSurahAyahs } from "@/lib/quran-api";
+import { fetchSurahAyahs, type Ayah } from "@/lib/quran-api";
 import { SURAH_META } from "@/data/surah-meta";
 import { toArabicNumerals } from "@/lib/utils";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { getReciterAyahAudioUrl } from "@/lib/reciters";
-import { useLocalStorage } from "@/hooks/useLocalStorage";
-import { DEFAULT_RECITER } from "@/lib/reciters";
-import { mobileAudioManager } from "@/lib/mobile-audio";
 
 interface CachedAyah {
   surah: number;
@@ -34,7 +30,6 @@ export function DailyAyah() {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const { t, language } = useLanguage();
-  const [reciterId] = useLocalStorage<string>("wise-reciter", DEFAULT_RECITER);
 
   useEffect(() => {
     const load = async () => {
@@ -66,8 +61,7 @@ export function DailyAyah() {
           fetch(`https://api.alquran.cloud/v1/surah/${ref.surah}/en.sahih`).then((r) => r.json()).catch(() => null),
         ]);
         const ayah = ayahs.find((a) => a.numberInSurah === ref.ayah);
-        // ⚡ Bolt: O(1) direct indexing
-        const surahMeta = SURAH_META[ref.surah - 1];
+        const surahMeta = SURAH_META.find((s) => s.number === ref.surah);
         const tAyah = translationResp?.data?.ayahs?.find((a: { numberInSurah: number }) => a.numberInSurah === ref.ayah);
 
         if (ayah && surahMeta) {
@@ -91,27 +85,14 @@ export function DailyAyah() {
   }, [language]);
 
   if (loading) {
-    // Skeleton mirrors the real card so the layout doesn't jump on
-    // first paint: same outer paddings, same header row height, three
-    // ayah-text lines, and a footer row matching the share/audio strip.
     return (
-      <div className="w-full rounded-2xl gradient-hero pb-[2px] pe-[20px] pt-[5px] mb-[5px] shadow-elevated border border-primary/10 ornamental-corner">
-        <div className="flex items-center gap-2 ms-[15px] mb-[5px] pb-[5px] pt-[5px]">
-          <Skeleton className="h-7 w-7 rounded-full" />
-          <Skeleton className="h-3 w-20" />
+      <div className="mb-5 rounded-2xl gradient-hero p-5 shadow-elevated ornamental-corner">
+        <div className="flex items-center gap-2 mb-3">
+          <Skeleton className="h-5 w-5 rounded-full" />
+          <Skeleton className="h-4 w-20" />
         </div>
-        <div className="space-y-2 mb-[5px]">
-          <Skeleton className="h-5 w-full rounded" />
-          <Skeleton className="h-5 w-11/12 rounded" />
-          <Skeleton className="h-5 w-3/4 rounded" />
-        </div>
-        <div className="flex items-center justify-between ms-[10px] pb-[6px]">
-          <Skeleton className="h-3 w-32" />
-          <div className="flex items-center gap-1">
-            <Skeleton className="h-6 w-6 rounded-lg" />
-            <Skeleton className="h-6 w-6 rounded-lg" />
-          </div>
-        </div>
+        <Skeleton className="h-20 w-full mb-3 rounded-xl" />
+        <Skeleton className="h-3 w-28 mr-auto" />
       </div>);
 
   }
@@ -124,7 +105,7 @@ export function DailyAyah() {
       animate={{ opacity: 1, y: 0 }}
       whileTap={{ scale: 0.99 }}
       onClick={() => navigate(`/surah/${data.surah}?ayah=${data.ayah}`)}
-      className="w-full rounded-2xl gradient-hero p-5 text-start shadow-elevated border border-primary/10 ornamental-corner relative overflow-hidden group cursor-pointer mb-[5px] pe-[20px] pt-[5px] pb-[2px]"
+      className="w-full rounded-2xl gradient-hero p-5 text-right shadow-elevated border border-primary/10 ornamental-corner relative overflow-hidden group cursor-pointer mb-[5px] pr-[20px] pt-[5px] pb-[2px]"
       dir={language === "ar" ? "rtl" : "ltr"}>
       
       {/* Decorative background pattern */}
@@ -142,7 +123,7 @@ export function DailyAyah() {
       </div>
 
       <div className="relative z-10">
-        <div className="flex items-center gap-2 ms-[15px] mb-[5px] pb-[5px] pt-[5px]">
+        <div className="flex items-center gap-2 mr-[15px] mb-[5px] pb-[5px] pt-[5px]">
           <div className="flex items-center justify-center w-7 h-7 rounded-full bg-primary/10">
             <Sparkles className="h-4 w-4 text-primary icon-glow" />
           </div>
@@ -158,15 +139,15 @@ export function DailyAyah() {
           </p>
         )}
         
-        <div className="flex items-center justify-between ms-[10px] mb-0 pb-[6px]">
+        <div className="flex items-center justify-between ml-[10px] mb-0 pb-[6px]">
           <p className="text-xs text-muted-foreground font-medium">
-            {language === "ar" ? data.surahName : (SURAH_META[data.surah - 1]?.englishName ?? data.surahName)} · {t("ayah")} {language === "ar" ? toArabicNumerals(data.ayah) : data.ayah}
+            {language === "ar" ? data.surahName : (SURAH_META.find(s => s.number === data.surah)?.englishName ?? data.surahName)} · {t("ayah")} {language === "ar" ? toArabicNumerals(data.ayah) : data.ayah}
           </p>
           <div className="flex items-center gap-1">
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                const displayName = language === "ar" ? data.surahName : (SURAH_META[data.surah - 1]?.englishName ?? data.surahName);
+                const displayName = language === "ar" ? data.surahName : (SURAH_META.find(s => s.number === data.surah)?.englishName ?? data.surahName);
                 const shareText = language === "ar"
                   ? `${data.text}\n\n— ${displayName}، آية ${data.ayah}`
                   : `${data.text}\n\n— ${displayName}, verse ${data.ayah}`;
@@ -184,12 +165,10 @@ export function DailyAyah() {
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                mobileAudioManager.prime("preview").catch(() => {});
-                mobileAudioManager.play(
-                  "preview",
-                  getReciterAyahAudioUrl(reciterId, getGlobalAyahNumber(data.surah, data.ayah)),
-                  { resetTime: true }
-                ).catch(() => {
+                const audio = new Audio(
+                  `https://cdn.islamic.network/quran/audio/128/ar.alafasy/${getGlobalAyahNumber(data.surah, data.ayah)}.mp3`
+                );
+                audio.play().catch(() => {
                   toast({ title: t("could_not_play_audio") });
                 });
               }}

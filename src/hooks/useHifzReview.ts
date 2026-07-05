@@ -76,8 +76,7 @@ export function useHifzReview() {
     return Object.values(state.items)
       .filter((item) => item.nextReview <= today && !reviewedToday.includes(item.surahNumber))
       .map((item) => {
-        // ⚡ Bolt: O(1) direct indexing
-        const meta = SURAH_META[item.surahNumber - 1];
+        const meta = SURAH_META.find((s) => s.number === item.surahNumber);
         return {
           ...item,
           surahName: meta?.name || "",

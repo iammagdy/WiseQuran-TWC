@@ -55,17 +55,10 @@ export function useLocation(autoFetch: boolean = false): UseLocationResult {
           timestamp: Date.now(),
         };
 
-        // Try reverse geocoding for city name (match the user's selected language)
+        // Try reverse geocoding for city name
         try {
-          let lang = "ar";
-          try {
-            const stored = localStorage.getItem("wise-quran-language");
-            if (stored === "en" || stored === "ar") lang = stored;
-          } catch {
-            /* localStorage may be disabled (Safari private mode etc.); fall back to "ar" */
-          }
           const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?lat=${data.latitude}&lon=${data.longitude}&format=json&accept-language=${lang}`
+            `https://nominatim.openstreetmap.org/reverse?lat=${data.latitude}&lon=${data.longitude}&format=json&accept-language=ar`
           );
           if (res.ok) {
             const json = await res.json();

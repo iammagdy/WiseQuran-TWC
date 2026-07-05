@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useLocalStorage } from "./useLocalStorage";
 import { useStreak } from "./useStreak";
+import { useDailyReading } from "./useDailyReading";
 import { useHifz } from "./useHifz";
-import { useReadingStats } from "./useReadingStats";
 
 export interface Achievement {
   id: string;
@@ -58,10 +58,30 @@ export function useAchievements() {
   const [newUnlock, setNewUnlock] = useState<Achievement | null>(null);
 
   const { streak } = useStreak();
+  const { todayCount, goal } = useDailyReading();
   const { stats: hifzStats } = useHifz();
-  const { totals } = useReadingStats();
-  const totalAyahs = totals.totalAyahs;
-  const memorizedCount = hifzStats.memorized;
+
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
+  const streakRef = useRef(streak);
+  streakRef.current = streak;
+
+  const hifzMemorizedRef = useRef(hifzStats.memorized);
+  hifzMemorizedRef.current = hifzStats.memorized;
+
+  const getTotalAyahs = useCallback(() => {
+    try {
+      const stats = localStorage.getItem("wise-reading-stats");
+      if (stats) {
+        const parsed = JSON.parse(stats);
+        return parsed.totalAyahs || 0;
+      }
+    } catch (error) {
+      console.error("Error reading total ayahs from localStorage:", error);
+    }
+    return 0;
+  }, []);
 
   const getGoalCompletions = useCallback(() => {
     try {
@@ -74,18 +94,22 @@ export function useAchievements() {
   }, []);
 
   const checkAndUnlock = useCallback(() => {
+    const currentState = stateRef.current;
+    const totalAyahs = getTotalAyahs();
+    const memorizedCount = hifzMemorizedRef.current;
     const goalCompletions = getGoalCompletions();
+    const currentStreak = streakRef.current;
 
     const newUnlocks: string[] = [];
 
     for (const def of ACHIEVEMENT_DEFINITIONS) {
-      if (state.unlocked[def.id]) continue;
+      if (currentState.unlocked[def.id]) continue;
 
       let shouldUnlock = false;
 
       switch (def.category) {
         case "streak":
-          shouldUnlock = streak >= (def.target || 0);
+          shouldUnlock = currentStreak >= (def.target || 0);
           break;
         case "reading":
           shouldUnlock = totalAyahs >= (def.target || 0);
@@ -118,22 +142,21 @@ export function useAchievements() {
         setNewUnlock({ ...firstNew, unlocked: true, unlockedAt: now });
       }
     }
-  }, [setState, getGoalCompletions, state.unlocked, streak, totalAyahs, memorizedCount]);
+  }, [setState, getTotalAyahs, getGoalCompletions]);
 
-  // Re-evaluate whenever any input state changes so unlocks appear the
-  // moment the underlying stat crosses a threshold. A low-frequency
-  // fallback poll covers goal completions, which are still persisted
-  // only in localStorage.
+  // Check for new achievements periodically
   useEffect(() => {
     checkAndUnlock();
-    const interval = setInterval(checkAndUnlock, 30000);
+    const interval = setInterval(checkAndUnlock, 30000); // Check every 30 seconds
     return () => clearInterval(interval);
   }, [checkAndUnlock]);
 
   const getAchievements = useCallback((): Achievement[] => {
+    const totalAyahs = getTotalAyahs();
+    const memorizedCount = hifzStats.memorized;
     const goalCompletions = getGoalCompletions();
     const currentStreak = streak;
-
+    
     return ACHIEVEMENT_DEFINITIONS.map((def) => {
       let progress = 0;
       
@@ -159,7 +182,7 @@ export function useAchievements() {
         progress,
       };
     });
-  }, [state.unlocked, streak, memorizedCount, totalAyahs, getGoalCompletions]);
+  }, [state.unlocked, streak, hifzStats.memorized, getTotalAyahs, getGoalCompletions]);
 
   const dismissNewUnlock = useCallback(() => {
     setNewUnlock(null);

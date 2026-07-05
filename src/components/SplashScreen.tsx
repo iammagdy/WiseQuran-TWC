@@ -9,13 +9,6 @@ export default function SplashScreen({ onComplete }: SplashScreenProps) {
   const [isVisible, setIsVisible] = useState(true);
 
   useEffect(() => {
-    const savedTheme = localStorage.getItem("wise-quran-theme");
-    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    const isDark = savedTheme ? savedTheme.replace(/"/g, "") === "dark" : prefersDark;
-    document.documentElement.classList.toggle("dark", isDark);
-  }, []);
-
-  useEffect(() => {
     const timer = setTimeout(() => {
       setIsVisible(false);
       setTimeout(onComplete, 500);
@@ -125,8 +118,6 @@ export default function SplashScreen({ onComplete }: SplashScreenProps) {
                   <img
                     src="/icons/icon-192.png"
                     alt="Wise Quran"
-                    width={76}
-                    height={76}
                     className="w-[76px] h-[76px] object-contain"
                   />
                 </div>

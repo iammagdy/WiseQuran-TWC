@@ -1,11 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, Download, Loader2, Pause, Play, Repeat, Timer, WifiOff, X } from "lucide-react";
-import { downloadSurahForOffline, isSurahFullyOffline, formatBytes } from "@/lib/offline-surah";
-import { DEFAULT_TAFSIR } from "@/data/tafsir-editions";
+import { Play, Pause, Download, Loader as Loader2, WifiOff, Check, X, Timer, Repeat } from "lucide-react";
+import { downloadSurahAudio, formatBytes } from "@/lib/quran-audio";
+import { getAudio } from "@/lib/db";
 import { toast } from "sonner";
-import { cn, toArabicNumerals, formatTime } from "@/lib/utils";
-import { useAudioPlayerState, useAudioPlayerTime } from "@/hooks/useAudioPlayer";
+import { cn, toArabicNumerals } from "@/lib/utils";
+import { useAudioPlayer } from "@/contexts/AudioPlayerContext";
 import { getReciterById } from "@/lib/reciters";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
@@ -17,21 +17,23 @@ interface Props {
   ayahs?: Ayah[];
 }
 
+function formatTime(s: number, lang: string) {
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  const base = `${m}:${sec.toString().padStart(2, "0")}`;
+  return lang === "ar" ? toArabicNumerals(base) : base;
+}
 
 const TIMER_PRESETS = [5, 10, 15, 20];
 
 export default function SurahBottomBar({ surahNumber, surahName, ayahs }: Props) {
-  const player = useAudioPlayerState();
-  const { currentTime: playerCurrentTime, duration: playerDuration } = useAudioPlayerTime();
+  const player = useAudioPlayer();
   const { t, language } = useLanguage();
   const isThisSurah = player.surahNumber === surahNumber;
 
   const [cached, setCached] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [dlProgress, setDlProgress] = useState(0);
-  // Held in a ref so the cancel handler can reach the controller
-  // without triggering re-renders on every progress tick.
-  const dlAbortRef = useRef<AbortController | null>(null);
 
   const [timerActive, setTimerActive] = useState(false);
   const [timerRemaining, setTimerRemaining] = useState(0);
@@ -39,18 +41,10 @@ export default function SurahBottomBar({ surahNumber, surahName, ayahs }: Props)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [loopEnabled, setLoopEnabled] = useLocalStorage<boolean>(`wise-loop-${surahNumber}`, false);
-  const [tafsirId] = useLocalStorage<string>("wise-tafsir", DEFAULT_TAFSIR);
 
-  // Reflect "fully offline" status (audio + text + bundled tafsir for the
-  // current reciter/tafsir picks). Re-runs when the user switches reciter
-  // or tafsir so the badge doesn't lie about a different bundle.
   useEffect(() => {
-    let cancelled = false;
-    void isSurahFullyOffline({ surahNumber, reciterId: player.reciterId, tafsirId }).then((ok) => {
-      if (!cancelled) setCached(ok);
-    });
-    return () => { cancelled = true; };
-  }, [surahNumber, player.reciterId, tafsirId]);
+    getAudio(player.reciterId, surahNumber).then((r) => setCached(!!r));
+  }, [surahNumber, player.reciterId]);
 
   useEffect(() => {
     if (!timerActive) return;
@@ -86,59 +80,22 @@ export default function SurahBottomBar({ surahNumber, surahName, ayahs }: Props)
   };
 
   const handleDownload = async () => {
-    const controller = new AbortController();
-    dlAbortRef.current = controller;
     setDownloading(true);
     setDlProgress(0);
     try {
-      // Phase C: unified one-tap offline (audio + mushaf text + bundled
-      // tafsir) instead of audio-only — keeps reader and surah-list
-      // entry points behaviorally consistent.
-      const result = await downloadSurahForOffline({
-        surahNumber,
-        reciterId: player.reciterId,
-        tafsirId,
-        signal: controller.signal,
-        onProgress: setDlProgress,
-      });
-      // Verify all parts actually landed in IDB before claiming
-      // success — guards against quota eviction between save and
-      // read, and matches the surah-list button's contract.
-      const verified = await isSurahFullyOffline({
-        surahNumber,
-        reciterId: player.reciterId,
-        tafsirId,
-      });
-      if (!verified) {
-        throw new Error(t("download_did_not_complete"));
-      }
-      setCached(true);
-      toast.success(`${t("download_saved_offline")} (${formatBytes(result.totalBytes)})`);
-    } catch (e) {
-      // AbortError is the user's own cancel — show a quieter toast and
-      // skip the generic "failed" message. Partial IDB rows are
-      // already cleaned up inside the orchestrator.
-      if (e instanceof Error && e.name === "AbortError") {
-        toast(t("download_cancelled"));
+      const size = await downloadSurahAudio(player.reciterId, surahNumber, setDlProgress);
+      const check = await getAudio(player.reciterId, surahNumber);
+      if (check && check.data.byteLength > 1024) {
+        setCached(true);
+        toast.success(language === "en" ? `Audio downloaded (${formatBytes(size)})` : `تم تحميل الصوت (${formatBytes(size)})`);
       } else {
-        toast.error(e instanceof Error ? e.message : t("download_failed_generic"));
+        toast.error(language === "en" ? "Failed to save audio — try again" : "فشل حفظ الصوت — حاول مرة أخرى");
       }
-    } finally {
-      dlAbortRef.current = null;
-      setDownloading(false);
+    } catch (e) {
+      toast.error(language === "en" ? (e instanceof Error ? e.message : "Failed to download audio") : (e instanceof Error ? e.message : "فشل تحميل الصوت"));
     }
+    setDownloading(false);
   };
-
-  const handleCancelDownload = () => {
-    dlAbortRef.current?.abort();
-  };
-
-  // Abort any in-flight download when the bar unmounts (route change,
-  // modal close, etc.) so background fetches don't keep eating data
-  // and partial rows get cleaned up immediately.
-  useEffect(() => {
-    return () => { dlAbortRef.current?.abort(); };
-  }, []);
 
   const startTimer = (minutes: number) => {
     const secs = minutes * 60;
@@ -155,8 +112,8 @@ export default function SurahBottomBar({ surahNumber, surahName, ayahs }: Props)
 
   const playing = isThisSurah && player.playing;
   const loading = isThisSurah && player.loading;
-  const currentTime = isThisSurah ? playerCurrentTime : 0;
-  const duration = isThisSurah ? playerDuration : 0;
+  const currentTime = isThisSurah ? player.currentTime : 0;
+  const duration = isThisSurah ? player.duration : 0;
   const offline = isThisSurah && player.offline;
   const pct = duration > 0 ? currentTime / duration * 100 : 0;
 
@@ -243,7 +200,7 @@ export default function SurahBottomBar({ surahNumber, surahName, ayahs }: Props)
               whileTap={{ scale: 0.9 }}
               onClick={() => setLoopEnabled(!loopEnabled)}
               className={cn(
-                "flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-all",
+                "flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-all",
                 loopEnabled
                   ? "text-primary-foreground shadow-sm"
                   : "text-muted-foreground bg-muted hover:bg-muted/70"
@@ -258,7 +215,7 @@ export default function SurahBottomBar({ surahNumber, surahName, ayahs }: Props)
               whileTap={{ scale: 0.9 }}
               onClick={() => setShowTimer(!showTimer)}
               className={cn(
-                "flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-all",
+                "flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-all",
                 showTimer || timerActive
                   ? "text-primary bg-primary/15"
                   : "text-muted-foreground bg-muted hover:bg-muted/70"
@@ -299,17 +256,9 @@ export default function SurahBottomBar({ surahNumber, surahName, ayahs }: Props)
                 </motion.button>
               )}
               {downloading && (
-                <span className="flex items-center gap-1 rounded-full bg-muted ps-3 pe-1 py-1 text-[0.625rem] text-muted-foreground">
+                <span className="flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5 text-[0.625rem] text-muted-foreground">
                   <Loader2 className="h-3 w-3 animate-spin" />
-                  <span>{language === "ar" ? toArabicNumerals(`${dlProgress}%`) : `${dlProgress}%`}</span>
-                  <button
-                    type="button"
-                    onClick={handleCancelDownload}
-                    aria-label={t("cancel_download_aria")}
-                    className="ms-1 rounded-full p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
+                  {language === "ar" ? toArabicNumerals(`${dlProgress}%`) : `${dlProgress}%`}
                 </span>
               )}
               {cached && !downloading && (

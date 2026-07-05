@@ -43,7 +43,6 @@ interface Translations {
   // QuranPage
   quran_title: string;
   continue_reading: string;
-  continue_listening: string;
   search_placeholder: string;
   daily_goal: string;
   surah_list: string;
@@ -60,20 +59,6 @@ interface Translations {
   no_favorites: string;
   no_history: string;
   goal_complete: string;
-  your_progress: string;
-  view_details: string;
-  day_streak: string;
-  completed: string;
-  next_prayer: string;
-  night_greeting: string;
-  morning_greeting: string;
-  afternoon_greeting: string;
-  evening_greeting: string;
-  prayer_fajr: string;
-  prayer_dhuhr: string;
-  prayer_asr: string;
-  prayer_maghrib: string;
-  prayer_isha: string;
 
   // SurahReaderPage tabs (aliased for both naming patterns)
   tab_text: string;
@@ -85,10 +70,6 @@ interface Translations {
   focus_mode: string;
   mushaf_view: string;
   ayah_view: string;
-  wbw_toggle_label: string;
-  wbw_not_supported: string;
-  wbw_settings_label: string;
-  wbw_settings_description: string;
   tafsir_of_ayah: string;
   show_full_tafsir: string;
   search_tafsir: string;
@@ -142,6 +123,7 @@ interface Translations {
   asr: string;
   maghrib: string;
   isha: string;
+  next_prayer: string;
   location_required: string;
   qibla: string;
   prayer_guide: string;
@@ -154,13 +136,6 @@ interface Translations {
   days_streak: string;
   prayers_complete: string;
   complete_prayers: string;
-  prayers_completion_summary: string;
-  recitation_evaluating: string;
-  recitation_skipped: string;
-  recitation_skip: string;
-  qibla_locating_caption: string;
-  sync_indicator_label: string;
-  page_range_hint: string;
 
   // Tasbeeh
   tasbeeh_title: string;
@@ -243,9 +218,6 @@ interface Translations {
   prayer_time_reminder_disabled: string;
   prayer_time_hint: string;
   prayer_notifications_denied: string;
-  prayer_checkoff_reminder: string;
-  prayer_checkoff_reminder_hint: string;
-  prayer_streak_days: string;
   notifications_not_supported: string;
   notifications_permission_denied: string;
   azkar_reminder: string;
@@ -561,23 +533,6 @@ interface Translations {
 
   // DailyAyah toast
   could_not_play_audio: string;
-
-  // Wave 2 — note + offline-download toasts
-  note_saved: string;
-  download_saved_offline: string;
-  download_did_not_complete: string;
-  download_failed_generic: string;
-  download_cancelled: string;
-  cancel_download_aria: string;
-
-  // Wave 2 — sleep-mode placeholders
-  sleep_label_surah: string;
-  sleep_label_reciter: string;
-
-  // Wave 2 — home empty-state CTAs
-  home_empty_wird_cta: string;
-  home_empty_streak_cta: string;
-  home_empty_bookmarks_cta: string;
 }
 
 const ar: Translations = {
@@ -615,9 +570,8 @@ const ar: Translations = {
   km: "كم",
   meters: "متر",
 
-  quran_title: "القران الكريم",
+  quran_title: "القرآن الكريم",
   continue_reading: "متابعة القراءة",
-  continue_listening: "متابعة الاستماع",
   search_placeholder: "بحث بالاسم، الرقم، أو نص الآية...",
   daily_goal: "هدف اليوم",
   surah_list: "السور",
@@ -634,20 +588,6 @@ const ar: Translations = {
   no_favorites: "لا توجد سور مفضلة",
   no_history: "لا يوجد سجل قراءة",
   goal_complete: "ما شاء الله! أكملت هدفك اليوم",
-  your_progress: "تقدمك اليوم",
-  view_details: "عرض التفاصيل",
-  day_streak: "يوم متواصل",
-  completed: "مكتمل",
-  next_prayer: "الصلاة القادمة",
-  night_greeting: "ليلة مباركة",
-  morning_greeting: "صباح الخير",
-  afternoon_greeting: "مساء الخير",
-  evening_greeting: "مساء الخير",
-  prayer_fajr: "الفجر",
-  prayer_dhuhr: "الظهر",
-  prayer_asr: "العصر",
-  prayer_maghrib: "المغرب",
-  prayer_isha: "العشاء",
 
   tab_text: "النص",
   text_tab: "النص",
@@ -658,10 +598,6 @@ const ar: Translations = {
   focus_mode: "وضع التركيز",
   mushaf_view: "عرض المصحف",
   ayah_view: "عرض الآيات",
-  wbw_toggle_label: "كلمة بكلمة",
-  wbw_not_supported: "بيانات الكلمة بكلمة غير متوفرة لهذه السورة بعد",
-  wbw_settings_label: "كلمة بكلمة",
-  wbw_settings_description: "اضغط على أي كلمة لمعرفة معناها وجذرها",
   tafsir_of_ayah: "تفسير الآية",
   show_full_tafsir: "← عرض تفسير السورة بالكامل",
   search_tafsir: "ابحث في التفسير...",
@@ -711,6 +647,7 @@ const ar: Translations = {
   asr: "العصر",
   maghrib: "المغرب",
   isha: "العشاء",
+  next_prayer: "الصلاة القادمة",
   location_required: "يتطلب تحديد الموقع",
   qibla: "القبلة",
   prayer_guide: "دليل الصلاة",
@@ -723,13 +660,6 @@ const ar: Translations = {
   days_streak: "أيام",
   prayers_complete: "ما شاء الله! 🎉",
   complete_prayers: "أكمل صلواتك",
-  prayers_completion_summary: "{done}/{total} أكمل صلواتك",
-  recitation_evaluating: "جاري التقييم...",
-  recitation_skipped: "تخطي",
-  recitation_skip: "تخطي",
-  qibla_locating_caption: "جارٍ تحديد الموقع...",
-  sync_indicator_label: "مزامنة الإعدادات معلقة",
-  page_range_hint: "أدخل رقمًا بين {min} و {max}",
 
   tasbeeh_title: "التسبيح",
   set_target: "تحديد العدد المستهدف",
@@ -808,9 +738,6 @@ const ar: Translations = {
   prayer_time_reminder_disabled: "تم إيقاف إشعارات الصلاة",
   prayer_time_hint: "ستصلك إشعارات عند دخول وقت كل صلاة",
   prayer_notifications_denied: "تم رفض إذن الإشعارات — يرجى تفعيلها من إعدادات المتصفح",
-  prayer_checkoff_reminder: "تذكير بتأكيد الصلاة",
-  prayer_checkoff_reminder_hint: "تذكير لطيف قبل انتهاء وقت كل صلاة إذا لم تُؤكَّد",
-  prayer_streak_days: "يوم",
   notifications_not_supported: "المتصفح لا يدعم الإشعارات",
   notifications_permission_denied: "تم رفض إذن الإشعارات، يرجى تفعيلها من إعدادات المتصفح",
   azkar_reminder: "تذكير بأذكار الصباح والمساء",
@@ -1103,20 +1030,6 @@ const ar: Translations = {
   settings_toast_recitation_failed: "فشل تحميل التلاوة",
 
   could_not_play_audio: "تعذر تشغيل الصوت",
-
-  note_saved: "تم حفظ الملاحظة",
-  download_saved_offline: "تم الحفظ بدون اتصال",
-  download_did_not_complete: "لم يكتمل حفظ السورة بالكامل",
-  download_failed_generic: "فشل التحميل",
-  download_cancelled: "تم إلغاء التحميل",
-  cancel_download_aria: "إلغاء التحميل",
-
-  sleep_label_surah: "السورة",
-  sleep_label_reciter: "القارئ",
-
-  home_empty_wird_cta: "ابدأ وردك",
-  home_empty_streak_cta: "ابدأ سلسلتك",
-  home_empty_bookmarks_cta: "أضف علامة",
 };
 
 const en: Translations = {
@@ -1154,9 +1067,8 @@ const en: Translations = {
   km: "km",
   meters: "m",
 
-  quran_title: "Wise Quran",
+  quran_title: "The Wise Quran",
   continue_reading: "Continue Reading",
-  continue_listening: "Continue Listening",
   search_placeholder: "Search by name, number, or verse text...",
   daily_goal: "Daily Goal",
   surah_list: "Surahs",
@@ -1172,21 +1084,7 @@ const en: Translations = {
   no_bookmarks: "No bookmarks yet",
   no_favorites: "No favorite surahs",
   no_history: "No reading history",
-  goal_complete: "Masha'Allah! Goal reached for today",
-  your_progress: "Your Progress",
-  view_details: "View Details",
-  day_streak: "Day Streak",
-  completed: "Completed",
-  next_prayer: "Next Prayer",
-  night_greeting: "Blessed Night",
-  morning_greeting: "Good Morning",
-  afternoon_greeting: "Good Afternoon",
-  evening_greeting: "Good Evening",
-  prayer_fajr: "Fajr",
-  prayer_dhuhr: "Dhuhr",
-  prayer_asr: "Asr",
-  prayer_maghrib: "Maghrib",
-  prayer_isha: "Isha",
+  goal_complete: "MashaAllah! You completed your daily goal",
 
   tab_text: "Text",
   text_tab: "Text",
@@ -1197,10 +1095,6 @@ const en: Translations = {
   focus_mode: "Focus Mode",
   mushaf_view: "Mushaf View",
   ayah_view: "Verse View",
-  wbw_toggle_label: "Word-by-word",
-  wbw_not_supported: "Word-by-word data isn't available for this surah yet",
-  wbw_settings_label: "Word-by-word",
-  wbw_settings_description: "Tap any word to see its meaning and root",
   tafsir_of_ayah: "Tafsir of Verse",
   show_full_tafsir: "← Show full surah tafsir",
   search_tafsir: "Search tafsir...",
@@ -1250,6 +1144,7 @@ const en: Translations = {
   asr: "Asr",
   maghrib: "Maghrib",
   isha: "Isha",
+  next_prayer: "Next Prayer",
   location_required: "Location Required",
   qibla: "Qibla",
   prayer_guide: "Prayer Guide",
@@ -1262,13 +1157,6 @@ const en: Translations = {
   days_streak: "days",
   prayers_complete: "MashaAllah! 🎉",
   complete_prayers: "Complete your prayers",
-  prayers_completion_summary: "{done}/{total} prayers complete",
-  recitation_evaluating: "Evaluating...",
-  recitation_skipped: "Skipped",
-  recitation_skip: "Skip",
-  qibla_locating_caption: "Detecting your location...",
-  sync_indicator_label: "Settings sync pending",
-  page_range_hint: "Enter a number between {min} and {max}",
 
   tasbeeh_title: "Dhikr Counter",
   set_target: "Set target",
@@ -1347,9 +1235,6 @@ const en: Translations = {
   prayer_time_reminder_disabled: "Prayer time notifications disabled",
   prayer_time_hint: "You will be notified at each prayer time",
   prayer_notifications_denied: "Notification permission denied — please enable it in browser settings",
-  prayer_checkoff_reminder: "Check-off reminder",
-  prayer_checkoff_reminder_hint: "Gentle nudge before each prayer's window closes if you haven't marked it",
-  prayer_streak_days: "days",
   notifications_not_supported: "This browser does not support notifications",
   notifications_permission_denied: "Notification permission denied, please enable it in browser settings",
   azkar_reminder: "Morning & Evening Azkar Reminder",
@@ -1642,20 +1527,6 @@ const en: Translations = {
   settings_toast_recitation_failed: "Failed to download recitation",
 
   could_not_play_audio: "Could not play audio",
-
-  note_saved: "Note saved",
-  download_saved_offline: "Saved offline",
-  download_did_not_complete: "Surah did not fully save offline",
-  download_failed_generic: "Download failed",
-  download_cancelled: "Download cancelled",
-  cancel_download_aria: "Cancel download",
-
-  sleep_label_surah: "Surah",
-  sleep_label_reciter: "Reciter",
-
-  home_empty_wird_cta: "Start your wird",
-  home_empty_streak_cta: "Begin a streak",
-  home_empty_bookmarks_cta: "Add a bookmark",
 };
 
 interface LanguageContextValue {
@@ -1694,7 +1565,6 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   );
 }
 
-// eslint-disable-next-line react-refresh/only-export-components -- context hook co-exports with provider
 export function useLanguage() {
   const ctx = useContext(LanguageContext);
   if (!ctx) throw new Error("useLanguage must be used within LanguageProvider");

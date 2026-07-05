@@ -1,15 +1,13 @@
-import { useTransition } from "react";
-import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { useMemo } from "react";
+import { NavLink, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { isRamadanTabVisible } from "@/hooks/useRamadan";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { useSyncQueueContext } from "@/contexts/SyncQueueContext";
-import { isSupabaseConfigured } from "@/lib/supabase";
-import { useFeatureFlags } from "@/hooks/useFeatureFlags";
 
 function QuranIcon({ active }: { active: boolean }) {
   return (
-    <svg viewBox="0 0 24 24" className="icon-responsive" fill="none" stroke="currentColor" strokeWidth={active ? 1.75 : 1.5} strokeLinecap="round" strokeLinejoin="round">
+    <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth={active ? 1.75 : 1.5} strokeLinecap="round" strokeLinejoin="round">
       <path d="M2 6C2 5.45 2.45 5 3 5h8v14H3a1 1 0 0 1-1-1V6z" />
       <path d="M22 6c0-.55-.45-1-1-1h-8v14h8a1 1 0 0 0 1-1V6z" />
       <path d="M11 5v14" />
@@ -20,7 +18,7 @@ function QuranIcon({ active }: { active: boolean }) {
 
 function AzkarIcon({ active }: { active: boolean }) {
   return (
-    <svg viewBox="0 0 24 24" className="icon-responsive" fill="none" stroke="currentColor" strokeWidth={active ? 1.75 : 1.5} strokeLinecap="round" strokeLinejoin="round">
+    <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth={active ? 1.75 : 1.5} strokeLinecap="round" strokeLinejoin="round">
       <path d="M8 13V7a1 1 0 0 1 2 0v4" />
       <path d="M10 11V6a1 1 0 0 1 2 0v5" />
       <path d="M12 11V7a1 1 0 0 1 2 0v4" />
@@ -31,7 +29,7 @@ function AzkarIcon({ active }: { active: boolean }) {
 
 function MosqueIcon({ active }: { active: boolean }) {
   return (
-    <svg viewBox="0 0 24 24" className="icon-responsive" fill="none" stroke="currentColor" strokeWidth={active ? 1.75 : 1.5} strokeLinecap="round" strokeLinejoin="round">
+    <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth={active ? 1.75 : 1.5} strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 2v2" />
       <path d="M12 4c-2.5 0-4 1.8-4 4v1H7a1 1 0 0 0-1 1v8h12v-8a1 1 0 0 0-1-1h-1V8c0-2.2-1.5-4-4-4z" />
       <path d="M8 8c0-2.2 1.8-4 4-4s4 1.8 4 4" />
@@ -45,7 +43,7 @@ function MosqueIcon({ active }: { active: boolean }) {
 
 function TasbeehIcon({ active }: { active: boolean }) {
   return (
-    <svg viewBox="0 0 24 24" className="icon-responsive" fill="none" stroke="currentColor" strokeWidth={active ? 1.75 : 1.5} strokeLinecap="round" strokeLinejoin="round">
+    <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth={active ? 1.75 : 1.5} strokeLinecap="round" strokeLinejoin="round">
       <path d="M6 3a3 3 0 0 1 3 3v10a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3z" />
       <path d="M6 3v2" />
       <path d="M3 8h6" />
@@ -56,34 +54,34 @@ function TasbeehIcon({ active }: { active: boolean }) {
   );
 }
 
+function RamadanIcon({ active }: { active: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth={active ? 1.75 : 1.5} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z" />
+      <path d="M19 3l.5 1.5L21 5l-1.5.5L19 7l-.5-1.5L17 5l1.5-.5L19 3z" />
+    </svg>
+  );
+}
+
 function SettingsIcon({ active }: { active: boolean }) {
   return (
-    <svg viewBox="0 0 24 24" className="icon-responsive" fill="none" stroke="currentColor" strokeWidth={active ? 1.75 : 1.5} strokeLinecap="round" strokeLinejoin="round">
+    <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth={active ? 1.75 : 1.5} strokeLinecap="round" strokeLinejoin="round">
       <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
       <circle cx="12" cy="12" r="3" />
     </svg>
   );
 }
 
-function RamadanIcon({ active }: { active: boolean }) {
-  return (
-    <svg viewBox="0 0 24 24" className="icon-responsive" fill="none" stroke="currentColor" strokeWidth={active ? 1.75 : 1.5} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z" />
-      <path d="M19 3l1 2 2 1-2 1-1 2-1-2-2-1 2-1z" />
-    </svg>
-  );
-}
-
-const BASE_ICON_MAP = {
+const iconMap = {
   "/": QuranIcon,
   "/azkar": AzkarIcon,
   "/prayer": MosqueIcon,
   "/tasbeeh": TasbeehIcon,
-  "/settings": SettingsIcon,
   "/ramadan": RamadanIcon,
+  "/settings": SettingsIcon,
 } as const;
 
-const corePaths = [
+const basePaths = [
   { path: "/", key: "nav_quran" as const },
   { path: "/azkar", key: "nav_azkar" as const },
   { path: "/prayer", key: "nav_prayer" as const },
@@ -93,114 +91,71 @@ const corePaths = [
 
 export default function BottomNav() {
   const location = useLocation();
-  const navigate = useNavigate();
-  const [, startTransition] = useTransition();
   const { t } = useLanguage();
-  const { pendingCount } = useSyncQueueContext();
-  const { ramadanTab } = useFeatureFlags();
-  const showSyncBadge = isSupabaseConfigured && pendingCount > 0;
+  const showRamadan = useMemo(() => isRamadanTabVisible(), []);
 
-  const basePaths: { path: string; key: typeof corePaths[number]["key"]; label?: string }[] =
-    ramadanTab
-      ? [
-          ...corePaths,
-          { path: "/ramadan", key: "nav_settings" as const, label: "رمضان" },
-        ]
-      : corePaths;
+  const tabs = useMemo(() => {
+    if (!showRamadan) return basePaths;
+    return [
+      ...basePaths.slice(0, -1),
+      { path: "/ramadan", key: "nav_ramadan" as const },
+      basePaths[basePaths.length - 1],
+    ];
+  }, [showRamadan]);
 
   return (
-    <nav
-      aria-label="Primary"
-      className="fixed left-1/2 -translate-x-1/2 z-50 w-[95%] max-w-lg"
-      style={{
-        // Lift the floating dock above the iOS home indicator. The
-        // `0.75rem`/`1.5rem` base corresponds to the previous
-        // `bottom-3` / `sm:bottom-6` Tailwind classes.
-        bottom: "calc(var(--bottom-nav-gap, 0.75rem) + env(safe-area-inset-bottom, 0px))",
-      }}
-    >
-      <div className="glass-card rounded-[2rem] px-2 py-2 overflow-hidden border border-white/10 shadow-2xl">
-        <div className="flex items-center justify-around" style={{ height: 'calc(var(--nav-height) * 0.85)' }}>
-          {basePaths.map(({ path, key, label }) => {
-            // Utility routes (`/devkit`, `/sleep`, `/hifz`) aren't first-class
-            // tabs but they belong to a parent — light up the closest tab so
-            // the dock never looks "homeless". `/sleep` and `/hifz` flow out
-            // of the Quran home; `/devkit` lives under Settings.
-            const pathname = location.pathname;
-            const isActive =
-              path === "/"
-                ? pathname === "/" || pathname.startsWith("/sleep") || pathname.startsWith("/hifz")
-                : path === "/settings"
-                  ? pathname.startsWith("/settings") || pathname.startsWith("/devkit")
-                  : pathname.startsWith(path);
-            const IconComponent = BASE_ICON_MAP[path as keyof typeof BASE_ICON_MAP];
+    <nav className="fixed bottom-0 left-0 right-0 z-50 safe-bottom">
+      <div className="nav-floating glass-subtle border-t border-border/40">
+        <div className="mx-auto flex max-w-lg items-center justify-around px-2" style={{ height: 'var(--nav-height)' }}>
+          {tabs.map(({ path, key }) => {
+            const isActive = path === "/" ? location.pathname === "/" : location.pathname.startsWith(path);
+            const IconComponent = iconMap[path as keyof typeof iconMap];
             return (
               <NavLink
                 key={path}
                 to={path}
-                onClick={(e) => {
-                  if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-                  e.preventDefault();
-                  startTransition(() => { navigate(path); });
-                }}
-                data-testid={`bottom-nav-link-${path === "/" ? "quran" : path.replace("/", "")}`}
-                className={cn(
-                  "relative flex flex-col items-center justify-center gap-0.5 rounded-2xl transition-all duration-300 px-2 py-1.5 flex-1 min-w-0 max-w-[80px]",
-                  isActive ? "text-primary" : "text-muted-foreground/60"
-                )}
+                className="relative flex flex-col items-center gap-1 px-3 py-2 rounded-2xl transition-all duration-200 min-w-[52px]"
               >
                 {isActive && (
                   <motion.div
                     layoutId="nav-pill"
-                    className="absolute inset-x-1 inset-y-1 rounded-[1.25rem] bg-primary/8 shadow-sm border border-primary/5"
-                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                    className="absolute inset-0 rounded-xl bg-primary/10"
+                    transition={{ type: "spring", stiffness: 500, damping: 35 }}
                   />
                 )}
 
                 <motion.div
                   animate={{
-                    scale: isActive ? 1.1 : 1,
+                    scale: isActive ? 1.08 : 1,
                     y: isActive ? -1 : 0,
                   }}
-                  whileTap={{ scale: 0.85 }}
-                  transition={{ type: "spring", stiffness: 500, damping: 25 }}
+                  whileTap={{ scale: 0.78 }}
+                  transition={{ type: "spring", stiffness: 500, damping: 30 }}
                   className="relative z-10"
                 >
                   {IconComponent && (
                     <div
                       className={cn(
-                        "transition-all duration-300",
-                        isActive ? "text-primary" : "text-muted-foreground/60"
+                        "transition-all duration-200",
+                        isActive ? "text-primary" : "text-muted-foreground"
                       )}
                       style={{
-                        filter: isActive ? "drop-shadow(0 0 8px hsl(var(--primary) / 0.4))" : "none"
+                        filter: isActive ? "drop-shadow(0 0 6px hsl(var(--primary) / 0.45))" : "none"
                       }}
                     >
                       <IconComponent active={isActive} />
                     </div>
                   )}
-                  {path === "/settings" && showSyncBadge && (
-                    <>
-                      <span
-                        aria-hidden="true"
-                        className="absolute -top-0.5 -end-0.5 h-2 w-2 rounded-full bg-amber-500 border border-background animate-pulse z-20"
-                      />
-                      <span className="sr-only">{t("sync_indicator_label")}</span>
-                    </>
-                  )}
                 </motion.div>
 
                 <motion.span
-                  animate={{ 
-                    opacity: isActive ? 1 : 0.6,
-                    scale: isActive ? 1 : 0.95
-                  }}
+                  animate={{ opacity: isActive ? 1 : 0.65 }}
                   className={cn(
-                    "relative z-10 text-[9px] sm:text-[10px] font-bold tracking-tight no-overflow uppercase mt-0.5",
-                    isActive ? "text-primary" : "text-muted-foreground/50"
+                    "relative z-10 text-[11px] font-semibold transition-all duration-200 leading-none",
+                    isActive ? "text-primary" : "text-muted-foreground"
                   )}
                 >
-                  {label ?? t(key)}
+                  {t(key)}
                 </motion.span>
               </NavLink>
             );
