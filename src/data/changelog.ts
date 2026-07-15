@@ -1,4 +1,4 @@
-export const APP_VERSION = "3.10.0";
+export const APP_VERSION = "3.10.1";
 
 export interface ChangelogCategory {
   features?: string[];
@@ -14,20 +14,6 @@ export interface ChangelogEntry {
 }
 
 export const changelog: ChangelogEntry[] = [
-  {
-    version: "3.10.0",
-    date: "2026-07-15",
-    ar: {
-      features: [
-        "إضافة لوحة تحكم بالزوار (Visitor Dashboard) داخل الـ DevKit لمتابعة إحصائيات الاستخدام، الجلسات النشطة، وتحديد الجهات والشركات التابعين لها الزوار تلقائياً."
-      ],
-    },
-    en: {
-      features: [
-        "Added a new Visitor Dashboard inside the DevKit to display real-time app utilization statistics, active sessions, and visitor company/organization lookups."
-      ],
-    },
-  },
   {
     version: "3.9.9",
     date: "2026-07-15",

@@ -18,14 +18,126 @@ interface VisitorSession {
   created_at: string;
 }
 
+const MOCK_SESSIONS_INITIAL: VisitorSession[] = [
+  {
+    id: "mock-1",
+    session_id: "s-mock-1",
+    ip: "8.8.8.8",
+    org: "Google LLC",
+    city: "Mountain View",
+    country: "United States",
+    device: "Windows / Chrome",
+    bookmarks_count: 15,
+    hifz_count: 3,
+    tasbeeh_count: 120,
+    session_duration_seconds: 450,
+    last_active_at: new Date().toISOString(),
+    created_at: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+  },
+  {
+    id: "mock-2",
+    session_id: "s-mock-2",
+    ip: "37.224.0.1",
+    org: "Saudi Aramco",
+    city: "Dhahran",
+    country: "Saudi Arabia",
+    device: "iOS / Safari",
+    bookmarks_count: 4,
+    hifz_count: 1,
+    tasbeeh_count: 550,
+    session_duration_seconds: 1200,
+    last_active_at: new Date().toISOString(),
+    created_at: new Date(Date.now() - 25 * 60 * 1000).toISOString(),
+  },
+  {
+    id: "mock-3",
+    session_id: "s-mock-3",
+    ip: "20.112.250.1",
+    org: "Microsoft Corporation",
+    city: "Redmond",
+    country: "United States",
+    device: "MacOS / Chrome",
+    bookmarks_count: 28,
+    hifz_count: 6,
+    tasbeeh_count: 0,
+    session_duration_seconds: 3600,
+    last_active_at: new Date(Date.now() - 8 * 60 * 1000).toISOString(),
+    created_at: new Date(Date.now() - 68 * 60 * 1000).toISOString(),
+  },
+  {
+    id: "mock-4",
+    session_id: "s-mock-4",
+    ip: "163.121.12.1",
+    org: "Telecom Egypt (TE)",
+    city: "Giza",
+    country: "Egypt",
+    device: "Android / Samsung Browser",
+    bookmarks_count: 0,
+    hifz_count: 0,
+    tasbeeh_count: 2450,
+    session_duration_seconds: 300,
+    last_active_at: new Date().toISOString(),
+    created_at: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+  },
+  {
+    id: "mock-5",
+    session_id: "s-mock-5",
+    ip: "104.22.4.1",
+    org: "Cloudflare Inc.",
+    city: "London",
+    country: "United Kingdom",
+    device: "MacOS / Safari",
+    bookmarks_count: 8,
+    hifz_count: 2,
+    tasbeeh_count: 80,
+    session_duration_seconds: 900,
+    last_active_at: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
+    created_at: new Date(Date.now() - 17 * 60 * 1000).toISOString(),
+  }
+];
+
 export default function VisitorsPanel() {
   const [sessions, setSessions] = useState<VisitorSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isMock, setIsMock] = useState(false);
 
-  const fetchSessions = async () => {
+  const fetchSessions = async (isManual = false) => {
+    if (isManual) setLoading(true);
+
     if (!isSupabaseConfigured) {
-      setError("Supabase is not configured in this environment.");
+      // Supabase is not configured -> Fallback to interactive Mock Data
+      setIsMock(true);
+      setError(null);
+      
+      // Simulate network request delay
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      setSessions(prev => {
+        if (prev.length === 0) {
+          return MOCK_SESSIONS_INITIAL;
+        }
+        
+        // Simulate real-time session duration progress & random activity updates
+        return prev.map(s => {
+          const activeThreshold = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+          const isSessionActive = s.last_active_at >= activeThreshold;
+          
+          if (isSessionActive) {
+            const addedSeconds = isManual ? 5 : 15;
+            const rand = Math.random();
+            return {
+              ...s,
+              session_duration_seconds: s.session_duration_seconds + addedSeconds,
+              last_active_at: new Date().toISOString(),
+              bookmarks_count: rand > 0.85 ? s.bookmarks_count + 1 : s.bookmarks_count,
+              tasbeeh_count: rand > 0.6 ? s.tasbeeh_count + Math.floor(rand * 10) : s.tasbeeh_count,
+            };
+          }
+          return s;
+        });
+      });
+      
       setLoading(false);
       return;
     }
@@ -42,6 +154,7 @@ export default function VisitorsPanel() {
 
       setSessions(data || []);
       setError(null);
+      setIsMock(false);
     } catch (e: any) {
       setError(e.message || "Failed to fetch analytics data.");
     } finally {
@@ -51,7 +164,7 @@ export default function VisitorsPanel() {
 
   useEffect(() => {
     void fetchSessions();
-    const interval = setInterval(fetchSessions, 15000); // refresh every 15s
+    const interval = setInterval(() => void fetchSessions(), 15000); // refresh every 15s
     return () => clearInterval(interval);
   }, []);
 
@@ -90,6 +203,14 @@ export default function VisitorsPanel() {
 
   return (
     <div className="space-y-4">
+      {/* Mock Mode Alert */}
+      {isMock && (
+        <div className="bg-[#1f1b11] border border-[#f1e05a]/30 text-[#f1e05a] text-xs font-mono px-4 py-2.5 rounded-lg flex items-center justify-between">
+          <span>⚠️ Running in <strong>Preview Mode</strong> with simulated visitor data because Supabase is not configured in this environment.</span>
+          <span className="bg-[#f1e05a]/10 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">Preview</span>
+        </div>
+      )}
+
       {/* Top Banner Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className={`rounded-lg p-4 ${DK.card}`}>
@@ -146,7 +267,7 @@ export default function VisitorsPanel() {
           </div>
           <div className="flex items-center gap-2 mt-4">
             <button
-              onClick={() => { setLoading(true); void fetchSessions(); }}
+              onClick={() => void fetchSessions(true)}
               disabled={loading}
               className={`${DK.btnBase} ${DK.btnGray} text-[11px] px-3 py-1.5`}
             >
