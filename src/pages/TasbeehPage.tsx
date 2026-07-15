@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { RotateCcw, Target, Sparkles, ChevronDown, ArrowLeft, ArrowRight } from "lucide-react";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
+import { trackEvent } from "@/lib/analytics";
 import { toArabicNumerals } from "@/lib/utils";
 import { useLanguage } from "@/contexts/LanguageContext";
 
@@ -132,6 +133,7 @@ export default function TasbeehPage() {
     if (navigator.vibrate) navigator.vibrate(10);
     setCount((c) => c + 1);
     setTodayTotal((t) => t + 1);
+    trackEvent("tasbeeh_click");
     if ((count + 1) % 33 === 0) {
       setShowSparkle(true);
       setTimeout(() => setShowSparkle(false), 1200);

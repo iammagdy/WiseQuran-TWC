@@ -16,6 +16,10 @@ interface VisitorSession {
   session_duration_seconds: number;
   last_active_at: string;
   created_at: string;
+  feature_metrics?: {
+    pages?: Record<string, number>;
+    actions?: Record<string, number>;
+  };
 }
 
 const MOCK_SESSIONS_INITIAL: VisitorSession[] = [
@@ -33,6 +37,10 @@ const MOCK_SESSIONS_INITIAL: VisitorSession[] = [
     session_duration_seconds: 450,
     last_active_at: new Date().toISOString(),
     created_at: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+    feature_metrics: {
+      pages: { quran: 18, reader: 12, prayer: 4, tasbeeh: 3, settings: 1 },
+      actions: { play_audio: 8, open_tafsir: 3, click_wbw: 18, tasbeeh_click: 120 }
+    }
   },
   {
     id: "mock-2",
@@ -48,6 +56,10 @@ const MOCK_SESSIONS_INITIAL: VisitorSession[] = [
     session_duration_seconds: 1200,
     last_active_at: new Date().toISOString(),
     created_at: new Date(Date.now() - 25 * 60 * 1000).toISOString(),
+    feature_metrics: {
+      pages: { quran: 35, reader: 25, azkar: 14, tasbeeh: 12, hifz: 8 },
+      actions: { play_audio: 14, open_tafsir: 8, click_wbw: 32, tasbeeh_click: 550 }
+    }
   },
   {
     id: "mock-3",
@@ -63,6 +75,10 @@ const MOCK_SESSIONS_INITIAL: VisitorSession[] = [
     session_duration_seconds: 3600,
     last_active_at: new Date(Date.now() - 8 * 60 * 1000).toISOString(),
     created_at: new Date(Date.now() - 68 * 60 * 1000).toISOString(),
+    feature_metrics: {
+      pages: { quran: 52, reader: 45, prayer: 18, settings: 6, bookmarks: 5 },
+      actions: { play_audio: 30, open_tafsir: 15, click_wbw: 80 }
+    }
   },
   {
     id: "mock-4",
@@ -78,6 +94,10 @@ const MOCK_SESSIONS_INITIAL: VisitorSession[] = [
     session_duration_seconds: 300,
     last_active_at: new Date().toISOString(),
     created_at: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+    feature_metrics: {
+      pages: { quran: 8, reader: 4, tasbeeh: 25, sleep: 2 },
+      actions: { click_wbw: 5, tasbeeh_click: 2450 }
+    }
   },
   {
     id: "mock-5",
@@ -93,6 +113,10 @@ const MOCK_SESSIONS_INITIAL: VisitorSession[] = [
     session_duration_seconds: 900,
     last_active_at: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
     created_at: new Date(Date.now() - 17 * 60 * 1000).toISOString(),
+    feature_metrics: {
+      pages: { quran: 15, reader: 10, prayer: 6, settings: 3, qibla: 2 },
+      actions: { play_audio: 4, open_tafsir: 1, click_wbw: 12, tasbeeh_click: 80 }
+    }
   }
 ];
 
@@ -106,11 +130,8 @@ export default function VisitorsPanel() {
     if (isManual) setLoading(true);
 
     if (!isSupabaseConfigured) {
-      // Supabase is not configured -> Fallback to interactive Mock Data
       setIsMock(true);
       setError(null);
-      
-      // Simulate network request delay
       await new Promise(resolve => setTimeout(resolve, 300));
       
       setSessions(prev => {
@@ -118,7 +139,6 @@ export default function VisitorsPanel() {
           return MOCK_SESSIONS_INITIAL;
         }
         
-        // Simulate real-time session duration progress & random activity updates
         return prev.map(s => {
           const activeThreshold = new Date(Date.now() - 5 * 60 * 1000).toISOString();
           const isSessionActive = s.last_active_at >= activeThreshold;
@@ -126,12 +146,41 @@ export default function VisitorsPanel() {
           if (isSessionActive) {
             const addedSeconds = isManual ? 5 : 15;
             const rand = Math.random();
+            
+            // Advance mock pages & action metrics
+            const currentMetrics = s.feature_metrics || { pages: {}, actions: {} };
+            const pages = { ...currentMetrics.pages };
+            const actions = { ...currentMetrics.actions };
+
+            // Update random page views
+            if (rand > 0.4) {
+              const activePage = rand > 0.8 ? "reader" : (rand > 0.6 ? "quran" : "tasbeeh");
+              pages[activePage] = (pages[activePage] || 0) + 1;
+            }
+
+            // Update random events
+            if (rand > 0.5) {
+              if (rand > 0.85) {
+                actions.play_audio = (actions.play_audio || 0) + 1;
+              } else if (rand > 0.7) {
+                actions.open_tafsir = (actions.open_tafsir || 0) + 1;
+              } else if (rand > 0.55) {
+                actions.click_wbw = (actions.click_wbw || 0) + 1;
+              }
+            }
+            
+            const tasbeehAdded = rand > 0.6 ? Math.floor(rand * 15) : 0;
+            if (tasbeehAdded > 0) {
+              actions.tasbeeh_click = (actions.tasbeeh_click || 0) + tasbeehAdded;
+            }
+
             return {
               ...s,
               session_duration_seconds: s.session_duration_seconds + addedSeconds,
               last_active_at: new Date().toISOString(),
-              bookmarks_count: rand > 0.85 ? s.bookmarks_count + 1 : s.bookmarks_count,
-              tasbeeh_count: rand > 0.6 ? s.tasbeeh_count + Math.floor(rand * 10) : s.tasbeeh_count,
+              bookmarks_count: rand > 0.9 ? s.bookmarks_count + 1 : s.bookmarks_count,
+              tasbeeh_count: s.tasbeeh_count + tasbeehAdded,
+              feature_metrics: { pages, actions }
             };
           }
           return s;
@@ -201,6 +250,71 @@ export default function VisitorsPanel() {
     ? Math.round(sessions.reduce((acc, s) => acc + (s.session_duration_seconds || 0), 0) / sessions.length)
     : 0;
 
+  // Aggregate page views
+  const pageViews: Record<string, number> = {
+    quran: 0,
+    reader: 0,
+    azkar: 0,
+    prayer: 0,
+    tasbeeh: 0,
+    hifz: 0,
+    recitation_test: 0,
+    qibla: 0,
+    sleep: 0,
+    ramadan: 0,
+    settings: 0,
+    bookmarks: 0,
+  };
+
+  const actionCounts: Record<string, number> = {
+    play_audio: 0,
+    open_tafsir: 0,
+    click_wbw: 0,
+    tasbeeh_click: 0,
+  };
+
+  sessions.forEach(s => {
+    const metrics = s.feature_metrics;
+    if (metrics) {
+      if (metrics.pages) {
+        Object.entries(metrics.pages).forEach(([p, val]) => {
+          if (typeof val === "number") {
+            pageViews[p] = (pageViews[p] || 0) + val;
+          }
+        });
+      }
+      if (metrics.actions) {
+        Object.entries(metrics.actions).forEach(([a, val]) => {
+          if (typeof val === "number") {
+            actionCounts[a] = (actionCounts[a] || 0) + val;
+          }
+        });
+      }
+    }
+  });
+
+  const totalPageViews = Object.values(pageViews).reduce((a, b) => a + b, 0);
+
+  const pageLabels: Record<string, string> = {
+    quran: "Quran Main Page",
+    reader: "Surah Reader",
+    azkar: "Azkar Page",
+    prayer: "Prayer Times",
+    tasbeeh: "Tasbeeh Counter",
+    hifz: "Hifz Progress",
+    recitation_test: "Recitation Test",
+    qibla: "Qibla Finder",
+    sleep: "Sleep Mode Player",
+    ramadan: "Ramadan Center",
+    settings: "Settings Page",
+    bookmarks: "Bookmarks",
+    other: "Other Pages"
+  };
+
+  const sortedPages = Object.entries(pageViews)
+    .filter(([_, count]) => count > 0)
+    .sort((a, b) => b[1] - a[1]);
+
   return (
     <div className="space-y-4">
       {/* Mock Mode Alert */}
@@ -229,16 +343,83 @@ export default function VisitorsPanel() {
           <p className={`font-mono text-2xl font-bold ${DK.text} mt-1`}>{formatDuration(avgDuration)}</p>
         </div>
         <div className={`rounded-lg p-4 ${DK.card}`}>
-          <p className={`font-mono text-[10px] ${DK.subtle} uppercase tracking-wider`}>Active Features Usage</p>
-          <p className={`font-mono text-[10px] ${DK.muted} mt-1.5`}>
-            🔖 {totalBookmarks} Bookmarks<br />
-            🎯 {totalHifz} Hifz Surahs<br />
-            📿 {totalTasbeeh} Tasbeehs
-          </p>
+          <p className={`font-mono text-[10px] ${DK.subtle} uppercase tracking-wider`}>Total Page Views</p>
+          <p className={`font-mono text-2xl font-bold ${DK.text} mt-1`}>{totalPageViews}</p>
         </div>
       </div>
 
-      {/* Grid: Companies + Device Stats */}
+      {/* Feature Utilization Dashboard (NEW) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Most Visited Pages Progress Chart */}
+        <div className={`rounded-lg p-4 ${DK.card} space-y-4`}>
+          <div className="flex justify-between items-center border-b border-[#30363d] pb-2">
+            <p className={`font-mono text-xs font-semibold ${DK.text}`}>Most Visited Pages (Feature Share)</p>
+            <span className={`font-mono text-[10px] ${DK.subtle}`}>Views count</span>
+          </div>
+          {sortedPages.length === 0 ? (
+            <p className={`font-mono text-xs ${DK.subtle} py-4 text-center`}>No page view metrics logged yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {sortedPages.map(([page, count]) => {
+                const percent = totalPageViews ? Math.round((count / totalPageViews) * 100) : 0;
+                return (
+                  <div key={page} className="space-y-1">
+                    <div className="flex justify-between text-[11px] font-mono">
+                      <span className={DK.text}>{pageLabels[page] || page}</span>
+                      <span className={DK.muted}>{count} ({percent}%)</span>
+                    </div>
+                    <div className="w-full bg-[#161b22] h-2 rounded-full overflow-hidden border border-[#30363d]">
+                      <div 
+                        className="bg-[#2f81f7] h-full rounded-full transition-all duration-500" 
+                        style={{ width: `${percent}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Feature Interactions Grid */}
+        <div className={`rounded-lg p-4 ${DK.card} space-y-4`}>
+          <div className="border-b border-[#30363d] pb-2">
+            <p className={`font-mono text-xs font-semibold ${DK.text}`}>Popular Feature Interactions</p>
+          </div>
+          <div className="grid grid-cols-2 gap-3 h-[calc(100%-2rem)]">
+            <div className="bg-[#161b22] p-3 rounded-lg border border-[#30363d] flex flex-col justify-between">
+              <span className="text-xl">🔊</span>
+              <div>
+                <p className={`font-mono text-[10px] ${DK.subtle} uppercase`}>Audio Recitations</p>
+                <p className={`font-mono text-lg font-bold ${DK.text} mt-0.5`}>{actionCounts.play_audio || 0}</p>
+              </div>
+            </div>
+            <div className="bg-[#161b22] p-3 rounded-lg border border-[#30363d] flex flex-col justify-between">
+              <span className="text-xl">📖</span>
+              <div>
+                <p className={`font-mono text-[10px] ${DK.subtle} uppercase`}>Tafsir Opens</p>
+                <p className={`font-mono text-lg font-bold ${DK.text} mt-0.5`}>{actionCounts.open_tafsir || 0}</p>
+              </div>
+            </div>
+            <div className="bg-[#161b22] p-3 rounded-lg border border-[#30363d] flex flex-col justify-between">
+              <span className="text-xl">🔤</span>
+              <div>
+                <p className={`font-mono text-[10px] ${DK.subtle} uppercase`}>W-by-W Clicks</p>
+                <p className={`font-mono text-lg font-bold ${DK.text} mt-0.5`}>{actionCounts.click_wbw || 0}</p>
+              </div>
+            </div>
+            <div className="bg-[#161b22] p-3 rounded-lg border border-[#30363d] flex flex-col justify-between">
+              <span className="text-xl">📿</span>
+              <div>
+                <p className={`font-mono text-[10px] ${DK.subtle} uppercase`}>Tasbeeh Bead Taps</p>
+                <p className={`font-mono text-lg font-bold ${DK.text} mt-0.5`}>{actionCounts.tasbeeh_click || totalTasbeeh}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Grid: Companies + Status */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Top Companies */}
         <div className={`rounded-lg p-4 ${DK.card} space-y-3`}>
@@ -262,7 +443,7 @@ export default function VisitorsPanel() {
           <div className="space-y-1">
             <p className={`font-mono text-xs font-semibold ${DK.text}`}>Dashboard Status</p>
             <p className={`font-mono text-[11px] ${DK.muted}`}>
-              Auto-refreshing every 15 seconds. Telemetry logs anonymous IP organization and app utilization statistics in real-time.
+              Auto-refreshing every 15 seconds. Telemetry logs anonymous IP organization, page navigation, and feature clicks in real-time.
             </p>
           </div>
           <div className="flex items-center gap-2 mt-4">
@@ -293,7 +474,7 @@ export default function VisitorsPanel() {
                   <th className="py-2 pe-3 text-start">Location</th>
                   <th className="py-2 pe-3 text-start">Device</th>
                   <th className="py-2 pe-3 text-start">Duration</th>
-                  <th className="py-2 pe-3 text-center">Stats (🔖 / 🎯 / 📿)</th>
+                  <th className="py-2 pe-3 text-center">Bookmarks / Hifz / Tasbeeh</th>
                   <th className="py-2 text-end">Active</th>
                 </tr>
               </thead>

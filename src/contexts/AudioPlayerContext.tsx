@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import type { Ayah } from "@/lib/quran-api";
 import { mobileAudioManager } from "@/lib/mobile-audio";
 import { audioDebugLog } from "@/lib/audio-debug-log";
+import { trackEvent } from "@/lib/analytics";
 import {
   AudioPlayerStateContext,
   AudioPlayerTimeContext,
@@ -351,6 +352,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
         try {
           currentUrlRef.current = orderedUrls[0];
           await mobileAudioManager.play("quran", orderedUrls[0], { forceLoad: true });
+          trackEvent("play_audio");
           if (!blobUrlRef.current) {
             cachePlayingAudio(currentReciterId, surahNumber, orderedUrls[0]).catch((err) => {
               audioDebugLog(

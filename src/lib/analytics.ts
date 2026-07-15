@@ -5,6 +5,7 @@ import { logger } from "./logger";
 const SESSION_KEY = "wise-analytics-session-id";
 const LAST_HEARTBEAT_KEY = "wise-analytics-last-heartbeat";
 const DURATION_KEY = "wise-analytics-duration";
+const METRICS_KEY = "wise-analytics-metrics";
 
 function getSessionId(): string {
   let id = sessionStorage.getItem(SESSION_KEY);
@@ -15,6 +16,82 @@ function getSessionId(): string {
     sessionStorage.setItem(SESSION_KEY, id);
   }
   return id;
+}
+
+export interface FeatureMetrics {
+  pages: Record<string, number>;
+  actions: Record<string, number>;
+}
+
+function getStoredMetrics(): FeatureMetrics {
+  try {
+    const raw = sessionStorage.getItem(METRICS_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  return { pages: {}, actions: {} };
+}
+
+function saveStoredMetrics(metrics: FeatureMetrics) {
+  try {
+    sessionStorage.setItem(METRICS_KEY, JSON.stringify(metrics));
+  } catch (e) {}
+}
+
+export function trackPageView(pathname: string) {
+  if (typeof window === "undefined") return;
+  const metrics = getStoredMetrics();
+  
+  // Categorize paths
+  let pageName = "other";
+  if (pathname === "/") pageName = "quran";
+  else if (pathname.startsWith("/surah/")) pageName = "reader";
+  else if (pathname === "/azkar") pageName = "azkar";
+  else if (pathname === "/prayer") pageName = "prayer";
+  else if (pathname === "/tasbeeh") pageName = "tasbeeh";
+  else if (pathname === "/stats") pageName = "stats";
+  else if (pathname === "/hifz") pageName = "hifz";
+  else if (pathname === "/hifz/test") pageName = "recitation_test";
+  else if (pathname === "/qibla") pageName = "qibla";
+  else if (pathname === "/sleep") pageName = "sleep";
+  else if (pathname === "/ramadan") pageName = "ramadan";
+  else if (pathname === "/settings") pageName = "settings";
+  else if (pathname === "/bookmarks") pageName = "bookmarks";
+  
+  metrics.pages[pageName] = (metrics.pages[pageName] || 0) + 1;
+  saveStoredMetrics(metrics);
+  
+  void triggerQuickUpdate();
+}
+
+export function trackEvent(actionName: string) {
+  if (typeof window === "undefined") return;
+  const metrics = getStoredMetrics();
+  metrics.actions[actionName] = (metrics.actions[actionName] || 0) + 1;
+  saveStoredMetrics(metrics);
+  
+  void triggerQuickUpdate();
+}
+
+async function triggerQuickUpdate(): Promise<void> {
+  if (!isSupabaseConfigured) return;
+  const sessionId = sessionStorage.getItem(SESSION_KEY);
+  if (!sessionId) return;
+  
+  const currentDuration = parseInt(sessionStorage.getItem(DURATION_KEY) || "0", 10);
+  const metrics = getStoredMetrics();
+  
+  try {
+    await supabase
+      .from("visitor_analytics")
+      .update({
+        session_duration_seconds: currentDuration,
+        feature_metrics: metrics,
+        last_active_at: new Date().toISOString(),
+      })
+      .eq("session_id", sessionId);
+  } catch (e) {
+    logger.debug("[analytics] quick update failed", e);
+  }
 }
 
 interface LocalStats {
@@ -110,6 +187,7 @@ export async function initAnalytics(): Promise<void> {
 
     const device = getDeviceInfo();
     const stats = await getLocalStats();
+    const metrics = getStoredMetrics();
 
     try {
       await supabase.from("visitor_analytics").insert({
@@ -123,6 +201,7 @@ export async function initAnalytics(): Promise<void> {
         hifz_count: stats.hifz,
         tasbeeh_count: stats.tasbeeh,
         session_duration_seconds: 0,
+        feature_metrics: metrics,
       });
     } catch (e) {
       logger.debug("[analytics] failed to log session start", e);
@@ -151,6 +230,7 @@ async function sendHeartbeat(): Promise<void> {
   sessionStorage.setItem(DURATION_KEY, newDuration.toString());
 
   const stats = await getLocalStats();
+  const metrics = getStoredMetrics();
 
   try {
     await supabase
@@ -160,6 +240,7 @@ async function sendHeartbeat(): Promise<void> {
         bookmarks_count: stats.bookmarks,
         hifz_count: stats.hifz,
         tasbeeh_count: stats.tasbeeh,
+        feature_metrics: metrics,
         last_active_at: new Date().toISOString(),
       })
       .eq("session_id", sessionId);

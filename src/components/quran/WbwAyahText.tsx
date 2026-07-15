@@ -2,6 +2,7 @@ import { useState, useId } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { toArabicNumerals } from "@/lib/utils";
+import { trackEvent } from "@/lib/analytics";
 import type { WbwWord } from "@/lib/wbw";
 
 interface WbwAyahTextProps {
@@ -29,7 +30,10 @@ export function WbwAyahText({ ayahNumber, words, className }: WbwAyahTextProps) 
         <span key={`${idBase}-${w.p}`} className="whitespace-nowrap">
           <Popover
             open={openPos === w.p}
-            onOpenChange={(o) => setOpenPos(o ? w.p : null)}
+            onOpenChange={(o) => {
+              setOpenPos(o ? w.p : null);
+              if (o) trackEvent("click_wbw");
+            }}
           >
             <PopoverTrigger asChild>
               <button

@@ -7,6 +7,7 @@ import { isOfflineTafsirEdition } from "@/lib/offline-tafsir";
 import { TAFSIR_EDITIONS } from "@/data/tafsir-editions";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { toArabicNumerals } from "@/lib/utils";
+import { trackEvent } from "@/lib/analytics";
 
 interface TafsirSheetProps {
   open: boolean;
@@ -39,6 +40,7 @@ export default function TafsirSheet({
 
   useEffect(() => {
     if (!open || ayahNumber === null) return;
+    trackEvent("open_tafsir");
     if (loadedFor && loadedFor.surah === surahNumber && loadedFor.edition === editionId) return;
 
     let cancelled = false;
