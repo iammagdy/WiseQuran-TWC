@@ -1,4 +1,4 @@
-export const APP_VERSION = "3.9.6";
+export const APP_VERSION = "3.9.9";
 
 export interface ChangelogCategory {
   features?: string[];
@@ -14,6 +14,22 @@ export interface ChangelogEntry {
 }
 
 export const changelog: ChangelogEntry[] = [
+  {
+    version: "3.9.9",
+    date: "2026-07-15",
+    ar: {
+      fixes: [
+        "إصلاح مشكلة توقف وعطل التحميل (تعذر التحميل) التي كانت تظهر لبعض المستخدمين عند فتح صفحات القراءة أو السور.",
+        "تحسين استقرار عمل التطبيق بالكامل بدون اتصال بالإنترنت (Offline PWA) لضمان تحميل واستعراض السور والتفاسير المكتوبة بسلاسة."
+      ],
+    },
+    en: {
+      fixes: [
+        "Fixed a critical database error where Surah reading pages would fail to load (showing a 'Failed to load' error) for some users.",
+        "Improved offline (PWA) reliability to ensure that downloaded Surah texts, Tafsirs, and Word-by-word translations load correctly without internet."
+      ],
+    },
+  },
   {
     version: "3.9.6",
     date: "2026-05-02",
